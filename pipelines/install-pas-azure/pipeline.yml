@@ -1,0 +1,709 @@
+resource_types:
+- name: azure-blobstore
+  type: docker-image
+  source:
+    repository: pcfabr/azure-blobstore-resource
+
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+
+resources:
+- name: config
+  type: git
+  source:
+    uri: https://github.com/making/platform-automation.git
+    branch: master
+- name: terraform-template
+  type: git
+  source:
+    uri: https://github.com/making/terraforming-azure.git
+    branch: master
+- name: terraform-tfstate
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: terraform.tfstate
+- name: platform-automation
+  type: pivnet
+  source:
+    product_slug: platform-automation
+    api_token: ((pivnet_api_token))
+- name: platform-automation-state
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: state.yml
+- name: certificates
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: certificates.tgz
+
+create-vars: &create-vars
+  config:
+    platform: linux
+    image_resource:
+      type: docker-image
+      source:
+        repository: hashicorp/terraform
+        tag: 0.11.14
+    inputs:
+    - name: terraform-tfstate
+    outputs:
+    - name: vars
+    run:
+      path: sh
+      args:
+      - -c
+      - |
+        set -e
+        for v in infrastructure_subnet_name network_name ops_manager_private_ip ops_manager_public_ip ops_manager_security_group_name ops_manager_ssh_public_key ops_manager_storage_account pcf_resource_group_name;do
+          echo "${v}: $(terraform output -state=terraform-tfstate/terraform.tfstate ${v})" >> vars/terraform-output.yml
+        done
+
+prepare-tasks-with-secrets: &prepare-tasks-with-secrets
+  image: platform-automation-image
+  file: platform-automation-tasks/tasks/prepare-tasks-with-secrets.yml
+  params:
+    CONFIG_PATHS: config/config/azure/sandbox
+    VARS_PATHS: vars
+  input_mapping:
+    tasks: platform-automation-tasks
+    config: config
+  output_mapping:
+    tasks: platform-automation-tasks
+
+groups:
+- name: install
+  jobs:
+  - terraform-plan
+  - terraform-apply
+  - generate-certificate
+  - register-dns-record
+  - install-ops-manager
+  - configure-authentication
+  - update-ssl-certificate
+- name: uninstall
+  jobs:
+  - uninstall-ops-manager
+  - unregister-dns-record
+  - terraform-destroy
+- name: bootstrap
+  jobs:
+  - bootstrap-step1-blobstore-for-pipeline
+  - bootstrap-step2-terraform-tfstate
+  - bootstrap-step3-platform-automation-state
+
+jobs:
+- name: bootstrap-step1-blobstore-for-pipeline
+  plan:
+  - task: create-container
+    params:
+      TENANT_ID: ((tenant_id))
+      CLIENT_ID: ((client_id))
+      CLIENT_SECRET: ((client_secret))
+      LOCATION: ((location))
+      RESOURCE_GROUP: controlplane-ci
+      STORAGE_ACCOUNT_NAME: ((controlplane_ci_account_name))
+      STORAGE_CONTAINER_NAME: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      run:
+        path: bash
+        args: 
+        - -c
+        - |
+          set -e
+          az login --username ${CLIENT_ID} \
+                   --password ${CLIENT_SECRET} \
+                   --service-principal \
+                   --tenant ${TENANT_ID} 
+          
+          az group create --name ${RESOURCE_GROUP} \
+            --location "${LOCATION}"
+          
+          az storage account create --name ${STORAGE_ACCOUNT_NAME} \
+            --resource-group ${RESOURCE_GROUP} \
+            --location "${LOCATION}" \
+            --sku "Standard_LRS"
+          
+          az storage container create --name ${STORAGE_CONTAINER_NAME} \
+            --account-name ${STORAGE_ACCOUNT_NAME}
+
+- name: bootstrap-step2-terraform-tfstate
+  plan:
+  - task: create-tfstate
+    params:
+      AZURE_STORAGE_ACCOUNT: ((controlplane_ci_account_name))
+      AZURE_STORAGE_KEY: ((controlplane_ci_storage_account_access_key))
+      CONTAINER: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -ex
+          # https://github.com/pivotal-cf/pcf-pipelines/blob/master/install-pcf/azure/tasks/create-initial-terraform-state/task.sh
+          blobs=$(az storage blob list -c ${CONTAINER})
+          files=$(echo "$blobs" | jq -r .[].name)
+          
+          set +e
+          echo ${files} | grep terraform.tfstate
+          if [ "$?" -gt "0" ]; then
+            echo "{\"version\": 3}" > terraform.tfstate
+            az storage blob upload -c ${CONTAINER} -n terraform.tfstate -f terraform.tfstate
+            set +x
+            if [ "$?" -gt "0" ]; then
+              echo "Failed to upload empty tfstate file"
+              exit 1
+            fi
+            set -x
+            az storage blob snapshot -c ${CONTAINER} -n terraform.tfstate
+            set +x
+            if [ "$?" -gt "0" ]; then
+              echo "Failed to create snapshot of tfstate file"
+              exit 1
+            fi
+          else
+            echo "terraform.tfstate file found, skipping"
+            exit 0
+          fi 
+
+- name: bootstrap-step3-platform-automation-state
+  plan:
+  - task: create-state-yml
+    params:
+      AZURE_STORAGE_ACCOUNT: ((controlplane_ci_account_name))
+      AZURE_STORAGE_KEY: ((controlplane_ci_storage_account_access_key))
+      CONTAINER: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -ex
+          blobs=$(az storage blob list -c ${CONTAINER})
+          files=$(echo "$blobs" | jq -r .[].name)
+
+          set +e
+          echo ${files} | grep state.yml
+          if [ "$?" -gt "0" ]; then
+            echo "" > state.yml
+            az storage blob upload -c ${CONTAINER} -n state.yml -f state.yml
+            set +x
+            if [ "$?" -gt "0" ]; then
+              echo "Failed to upload empty state.yml"
+              exit 1
+            fi
+            set -x
+            az storage blob snapshot -c ${CONTAINER} -n state.yml
+            set +x
+            if [ "$?" -gt "0" ]; then
+              echo "Failed to create snapshot of state.yml"
+              exit 1
+            fi
+          else
+            echo "state.yml file found, skipping"
+            exit 0
+          fi
+
+- name: terraform-plan
+  plan:
+  - in_parallel:
+    - get: terraform-template
+    - get: terraform-tfstate
+  - task: terraform-plan
+    params:
+      TF_VAR_subscription_id: ((subscription_id))
+      TF_VAR_tenant_id: ((tenant_id))
+      TF_VAR_client_id: ((client_id))
+      TF_VAR_client_secret: ((client_secret))
+      TF_VAR_env_name: ((env_name))
+      TF_VAR_location: ((location))
+      TF_VAR_ops_manager_image_uri: ((ops_manager_image_uri))
+      TF_VAR_dns_suffix: ((dns_suffix))
+      TF_VAR_dns_subdomain: ((dns_subdomain))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+      inputs:
+      - name: terraform-template
+      - name: terraform-tfstate
+      run:
+        path: sh
+        args: 
+        - -c
+        - |
+          set -e
+          TERRAFORM_DIR=terraform-template/terraforming-pas
+          terraform init ${TERRAFORM_DIR}
+          terraform plan -state=terraform-tfstate/terraform.tfstate -out=plan ${TERRAFORM_DIR}
+
+- name: terraform-apply
+  plan:
+  - in_parallel:
+    - get: terraform-template
+      passed:
+      - terraform-plan
+    - get: terraform-tfstate
+  - task: terraform-plan-and-apply
+    params:
+      TF_VAR_subscription_id: ((subscription_id))
+      TF_VAR_tenant_id: ((tenant_id))
+      TF_VAR_client_id: ((client_id))
+      TF_VAR_client_secret: ((client_secret))
+      TF_VAR_env_name: ((env_name))
+      TF_VAR_location: ((location))
+      TF_VAR_ops_manager_image_uri: ((ops_manager_image_uri))
+      TF_VAR_dns_suffix: ((dns_suffix))
+      TF_VAR_dns_subdomain: ((dns_subdomain))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+      inputs:
+      - name: terraform-template
+      - name: terraform-tfstate
+      outputs:
+      - name: tfstate-output
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          TERRAFORM_DIR=terraform-template/terraforming-pas
+          terraform init ${TERRAFORM_DIR}
+          terraform plan -state=terraform-tfstate/terraform.tfstate -out=plan ${TERRAFORM_DIR}
+          terraform apply -state-out=tfstate-output/terraform.tfstate plan
+  ensure:
+    put: terraform-tfstate
+    params:
+      file: tfstate-output/terraform.tfstate
+
+- name: generate-certificate
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - terraform-apply
+      trigger: true
+  - task: create-env
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+      inputs:
+      - name: terraform-tfstate
+      outputs:
+      - name: env
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          wget -q -O jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+          install jq /usr/local/bin/
+          cat <<EOF > env/env.sh
+          export AZURE_CLIENT_ID=$(terraform output -json -state=terraform-tfstate/terraform.tfstate client_id | jq -r .value)
+          export AZURE_CLIENT_SECRET=$(terraform output -json -state=terraform-tfstate/terraform.tfstate client_secret | jq -r .value)
+          export AZURE_SUBSCRIPTION_ID=$(terraform output -json -state=terraform-tfstate/terraform.tfstate subscription_id | jq -r .value)
+          export AZURE_TENANT_ID=$(terraform output -json -state=terraform-tfstate/terraform.tfstate tenant_id | jq -r .value)
+          export AZURE_RESOURCE_GROUP=$(terraform output -json -state=terraform-tfstate/terraform.tfstate pcf_resource_group_name | jq -r .value)
+          EOF
+  - task: generate-certificate
+    params:
+      SUBDOMAIN: ((dns_subdomain)).((dns_suffix))
+      EMAIL: ((email))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: goacme/lego
+      inputs:
+      - name: env
+      outputs:
+      - name: lego
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          source env/env.sh
+
+          lego --accept-tos \
+            --key-type=rsa4096 \
+            --domains="*.${SUBDOMAIN}" \
+            --domains="*.apps.${SUBDOMAIN}" \
+            --domains="*.sys.${SUBDOMAIN}" \
+            --domains="*.uaa.sys.${SUBDOMAIN}" \
+            --domains="*.login.sys.${SUBDOMAIN}" \
+            --email=${EMAIL} \
+            --dns=azure \
+            run
+
+          tar czf certificates.tgz -C .lego certificates
+          mv certificates.tgz lego
+  - put: certificates
+    params:
+      file: lego/certificates.tgz
+
+- name: register-dns-record
+  plan:
+  - get: terraform-tfstate
+    passed:
+    - terraform-apply
+    trigger: true
+  - task: terraform-output
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+      inputs:
+      - name: terraform-tfstate
+      outputs:
+      - name: terraform-output
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          terraform output -json -state=terraform-tfstate/terraform.tfstate env_dns_zone_name_servers > terraform-output/ns.json
+  - task: register-dns-record
+    params:
+      CLIENT_ID: ((client_id))
+      CLIENT_SECRET: ((client_secret))
+      TENANT_ID: ((tenant_id))
+      RESOURCE_GROUP: controlplane-ci
+      ZONE_NAME: ((dns_suffix))
+      FOUNDATION: ((dns_subdomain))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      inputs:
+      - name: terraform-tfstate
+      - name: terraform-output
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          az login --username ${CLIENT_ID} \
+                   --password ${CLIENT_SECRET} \
+                   --service-principal \
+                   --tenant ${TENANT_ID} > /dev/null
+          set -x
+          
+          for n in $(cat terraform-output/ns.json | jq -r '.value | join(" ")'); do
+            az network dns record-set ns add-record \
+              --resource-group ${RESOURCE_GROUP} \
+              --zone-name ${ZONE_NAME} \
+              --record-set-name ${FOUNDATION} \
+              --nsdname ${n} \
+              --ttl 60
+          done
+
+          az network dns record-set list \
+            --output table \
+            --resource-group ${RESOURCE_GROUP} \
+            --zone-name ${ZONE_NAME}
+
+- name: install-ops-manager
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - register-dns-record
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+    - get: platform-automation-state
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    input_mapping:
+      config: config
+    params:
+      CONFIG_FILE: config/azure/sandbox/ops-manager/download-config.yml
+  - task: create-vm
+    params:
+      OPSMAN_CONFIG_FILE: config/azure/sandbox/ops-manager/config.yml
+      VARS_FILES: vars/terraform-output.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/create-vm.yml
+    input_mapping:
+      state: platform-automation-state
+      config: config
+      image: downloaded-product
+  ensure:
+    put: platform-automation-state
+    params:
+      file: generated-state/state.yml
+
+- name: configure-authentication
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - install-ops-manager
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-authentication
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      AUTH_CONFIG_FILE: config/azure/sandbox/ops-manager/auth.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-authentication.yml
+    attempts: 10
+    input_mapping:
+      env: config
+      config: config
+
+- name: update-ssl-certificate
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - configure-authentication
+      trigger: true
+    - get: certificates
+      passed:
+      - generate-certificate
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: update-ssl-certificate
+    params:
+      OM_USERNAME: ((om_username))
+      OM_PASSWORD: ((om_password))
+      OM_TARGET: https://pcf.((dns_subdomain)).((dns_suffix))
+      OM_SKIP_SSL_VALIDATION: true
+      SUBDOMAIN: ((dns_subdomain)).((dns_suffix))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: certificates
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          tar xzf certificates/certificates.tgz
+
+          om update-ssl-certificate \
+            --certificate-pem="$(cat certificates/_.${SUBDOMAIN}.crt)" \
+            --private-key-pem="$(cat certificates/_.${SUBDOMAIN}.key)"
+
+- name: uninstall-ops-manager
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+    - get: platform-automation-state
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: delete-vm
+    params:
+      OPSMAN_CONFIG_FILE: config/azure/sandbox/ops-manager/config.yml
+      VARS_FILES: vars/terraform-output.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-vm.yml
+    input_mapping:
+      state: platform-automation-state
+      config: config
+  ensure:
+    put: platform-automation-state
+    params:
+      file: generated-state/state.yml # delete-vm.ymlのoutput
+
+
+- name: unregister-dns-record
+  plan:
+  - get: terraform-tfstate
+    passed:
+    - uninstall-ops-manager
+    trigger: true
+  - task: unregister-dns-record
+    params:
+      CLIENT_ID: ((client_id))
+      CLIENT_SECRET: ((client_secret))
+      TENANT_ID: ((tenant_id))
+      RESOURCE_GROUP: controlplane-ci
+      ZONE_NAME: ((dns_suffix))
+      FOUNDATION: ((dns_subdomain))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          az login --username ${CLIENT_ID} \
+                   --password ${CLIENT_SECRET} \
+                   --service-principal \
+                   --tenant ${TENANT_ID} > /dev/null
+          set -x
+
+          az network dns record-set ns delete --yes \
+            --resource-group ${RESOURCE_GROUP} \
+            --zone-name ${ZONE_NAME} \
+            --name ${FOUNDATION}
+
+          az network dns record-set list \
+            --output table \
+            --resource-group ${RESOURCE_GROUP} \
+            --zone-name ${ZONE_NAME}
+
+- name: terraform-destroy
+  plan:
+  - in_parallel:
+    - get: terraform-template
+    - get: terraform-tfstate
+      passed:
+      - unregister-dns-record
+      trigger: true
+  - task: terraform-destroy
+    params:
+      ARM_CLIENT_ID: ((client_id))
+      ARM_CLIENT_SECRET: ((client_secret))
+      ARM_SUBSCRIPTION_ID: ((subscription_id))
+      ARM_TENANT_ID: ((tenant_id))
+      TF_VAR_client_id: ((client_id))
+      TF_VAR_client_secret: ((client_secret))
+      TF_VAR_dns_subdomain: ((dns_subdomain))
+      TF_VAR_dns_suffix: ((dns_suffix))
+      TF_VAR_env_name: ((env_name))
+      TF_VAR_location: ((location))
+      TF_VAR_ops_manager_image_uri: ((ops_manager_image_uri))
+      TF_VAR_subscription_id: ((subscription_id))
+      TF_VAR_tenant_id: ((tenant_id))
+    attempts: 3
+    config:
+      platform: linux
+      image_resource:
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+        type: docker-image
+      inputs:
+      - name: terraform-template
+      - name: terraform-tfstate
+      outputs:
+      - name: tfstate-output
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          TERRAFORM_DIR=terraform-template/terraforming-pas
+          terraform init ${TERRAFORM_DIR}
+          terraform destroy -state=terraform-tfstate/terraform.tfstate -state-out=tfstate-output/terraform.tfstate --force
+  ensure:
+    params:
+      file: tfstate-output/terraform.tfstate
+    put: terraform-tfstate
