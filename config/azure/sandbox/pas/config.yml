@@ -175,7 +175,7 @@ product-properties:
     - certificate:
         cert_pem: ((router_cert_pem))
         private_key_pem: ((router_private_key_pem))
-      name: letsencrypt-sandbox
+      name: letsencrypt1
   .properties.networkpolicyserver_database_max_open_connections:
     value: 200
   .properties.networkpolicyserverinternal_database_max_open_connections:
