@@ -372,7 +372,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     persistent_disk:
       size_mb: automatic
@@ -384,7 +384,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   cloud_controller:
@@ -394,7 +394,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   cloud_controller_worker:
@@ -404,7 +404,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   credhub:
@@ -414,7 +414,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   diego_brain:
@@ -425,7 +425,7 @@ resource-config:
     - ((diego_ssh_lb_name))
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   diego_cell:
@@ -435,7 +435,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   diego_database:
@@ -445,7 +445,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   doppler:
@@ -455,7 +455,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   ha_proxy:
@@ -465,7 +465,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 0
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   istio_control:
@@ -495,7 +495,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   mysql:
@@ -505,7 +505,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     persistent_disk:
       size_mb: automatic
@@ -517,7 +517,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 0
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   mysql_proxy:
@@ -527,7 +527,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   nats:
@@ -537,7 +537,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   nfs_server:
@@ -570,7 +570,7 @@ resource-config:
     - ((web_lb_name))
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
   tcp_router:
@@ -592,7 +592,7 @@ resource-config:
     elb_names: []
     instance_type:
       id: automatic
-    instances: automatic
+    instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
 errand-config:
