@@ -186,7 +186,7 @@ product-properties:
   .properties.push_apps_manager_app_poll_interval:
     value: 10
   .properties.push_apps_manager_company_name:
-    value: @making
+    value: "@making"
   .properties.push_apps_manager_currency_lookup:
     value: '{ "usd": "$", "eur": "€" }'
   .properties.push_apps_manager_display_plan_prices:
