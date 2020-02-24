@@ -83,6 +83,16 @@ create-vars: &create-vars
                  services_subnet_name \
                  services_subnet_cidr \
                  services_subnet_gateway \
+                 apps_domain \
+                 sys_domain \
+                 web_lb_name \
+                 diego_ssh_lb_name \
+                 cf_buildpacks_storage_container \
+                 cf_droplets_storage_container \
+                 cf_packages_storage_container \
+                 cf_resources_storage_container \
+                 cf_storage_account_name \
+                 cf_storage_account_access_key \
                  ;do
           echo "${v}: $(terraform output -state=terraform-tfstate/terraform.tfstate ${v})" >> vars/terraform-output.yml
         done
@@ -100,6 +110,8 @@ create-vars: &create-vars
         infrastructure_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway | sed 's/.1$/.9/')
         pas_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway | sed 's/.1$/.9/')
         services_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway | sed 's/.1$/.9/')
+        router_cert_pem: TO BE UPDATED IN JOB
+        router_private_key_pem: TO BE UPDATED IN JOB
         EOF
 
 prepare-tasks-with-secrets: &prepare-tasks-with-secrets
@@ -110,7 +122,6 @@ prepare-tasks-with-secrets: &prepare-tasks-with-secrets
     VARS_PATHS: vars
   input_mapping:
     tasks: platform-automation-tasks
-    config: config
   output_mapping:
     tasks: platform-automation-tasks
 
@@ -125,6 +136,9 @@ groups:
   - configure-authentication
   - update-ssl-certificate
   - configure-director
+  - upload-and-stage-pas
+  - configure-pas
+  - apply-changes
 - name: uninstall
   jobs:
   - uninstall-ops-manager
@@ -517,8 +531,6 @@ jobs:
   - task: download-product
     image: platform-automation-image
     file: platform-automation-tasks/tasks/download-product.yml
-    input_mapping:
-      config: config
     params:
       CONFIG_FILE: config/azure/sandbox/ops-manager/download-config.yml
   - task: create-vm
@@ -529,7 +541,6 @@ jobs:
     file: platform-automation-tasks/tasks/create-vm.yml
     input_mapping:
       state: platform-automation-state
-      config: config
       image: downloaded-product
   ensure:
     put: platform-automation-state
@@ -568,7 +579,6 @@ jobs:
     attempts: 10
     input_mapping:
       env: config
-      config: config
 
 - name: update-ssl-certificate
   plan:
@@ -641,7 +651,156 @@ jobs:
     file: platform-automation-tasks/tasks/configure-director.yml
     input_mapping:
       env: config
-      config: config
+
+- name: upload-and-stage-pas
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - update-ssl-certificate
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/azure/sandbox/pas/download-config.yml
+      SOURCE: pivnet
+    output_mapping:
+      downloaded-product: product
+      downloaded-stemcell: stemcell
+  - in_parallel:
+    - task: upload-and-stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config        
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config    
+
+- name: configure-pas
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - upload-and-stage-pas
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+    - get: certificates
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: update-vars
+    params:
+      SUBDOMAIN: ((dns_subdomain)).((dns_suffix))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: vars
+      - name: certificates
+      outputs:
+      - name: vars
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          tar xzf certificates/certificates.tgz
+
+          cp vars/terraform-output.yml terraform-output.yml
+          bosh interpolate terraform-output.yml \
+          -o <(cat <<EOF
+          - type: replace
+            path: /router_cert_pem
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.crt | sed 's/^/    /')
+          - type: replace
+            path: /router_private_key_pem
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.key | sed 's/^/    /')
+          EOF
+          ) > vars/terraform-output.yml
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/azure/sandbox/pas/config.yml
+      VARS_FILES: vars/terraform-output.yml
+
+
+- name: apply-changes
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - configure-pas
+      - configure-director
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: apply-changes
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/apply-changes.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
 
 - name: uninstall-ops-manager
   serial: true
@@ -673,7 +832,6 @@ jobs:
     file: platform-automation-tasks/tasks/delete-vm.yml
     input_mapping:
       state: platform-automation-state
-      config: config
   ensure:
     put: platform-automation-state
     params:
