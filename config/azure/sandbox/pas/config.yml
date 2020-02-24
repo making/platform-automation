@@ -258,8 +258,6 @@ product-properties:
     value: true
   .properties.syslog_drop_debug:
     value: true
-  .properties.syslog_metrics_to_syslog_enabled:
-    value: true
   .properties.syslog_tls:
     selected_option: disabled
     value: disabled
