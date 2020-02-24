@@ -573,26 +573,6 @@ resource-config:
     instances: automatic
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
-  syslog_adapter:
-    max_in_flight: 100%
-    additional_networks: []
-    additional_vm_extensions: []
-    elb_names: []
-    instance_type:
-      id: automatic
-    instances: automatic
-    internet_connected: false
-    swap_as_percent_of_memory_size: automatic
-  syslog_scheduler:
-    max_in_flight: 1
-    additional_networks: []
-    additional_vm_extensions: []
-    elb_names: []
-    instance_type:
-      id: automatic
-    instances: automatic
-    internet_connected: false
-    swap_as_percent_of_memory_size: automatic
   tcp_router:
     max_in_flight: 1
     additional_networks: []
