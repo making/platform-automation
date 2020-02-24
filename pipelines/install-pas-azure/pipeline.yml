@@ -141,6 +141,7 @@ groups:
   - apply-changes
 - name: uninstall
   jobs:
+  - delete-installation
   - uninstall-ops-manager
   - unregister-dns-record
   - terraform-destroy
@@ -802,11 +803,43 @@ jobs:
     params:
       ENV_FILE: config/azure/sandbox/ops-manager/env.yml
 
+- name: delete-installation
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    <<: *create-vars
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: delete-installation
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-installation.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+
 - name: uninstall-ops-manager
   serial: true
   plan:
   - in_parallel:
     - get: terraform-tfstate
+      passed:
+      - delete-installation
+      trigger: true
     - get: platform-automation-image
       resource: platform-automation
       params:
