@@ -8,6 +8,8 @@ for v in controlplane_ci_account_name \
          om_password \
          dns_suffix \
          dns_subdomain \
+         email \
+         location \
          ;do
-  vault kv put concourse/main/upgrade-opsman-azure/$v value=$(vault kv get -field=value concourse/main/install-pas-azure/$v)
+  vault kv put concourse/main/upgrade-opsman-azure/$v value="$(vault kv get -field=value concourse/main/install-pas-azure/$v)"
 done
