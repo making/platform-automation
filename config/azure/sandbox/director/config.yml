@@ -1,20 +1,20 @@
 iaas-configurations:
 - additional_cloud_properties: {}
   availability_mode: availability_zones
-  bosh_storage_account_name: ((iaas-configurations_0_bosh_storage_account_name))
-  client_id: ((iaas-configurations_0_client_id))
-  client_secret: ((iaas-configurations_0_client_secret))
+  bosh_storage_account_name: ((bosh_root_storage_account))
+  client_id: ((client_id))
+  client_secret: ((client_secret))
   cloud_storage_type: managed_disks
-  default_security_group: ((iaas-configurations_0_default_security_group))
+  default_security_group: ((ops_manager_security_group_name))
   deployed_cloud_storage_type: managed_disks
   environment: AzureCloud
   name: default
-  resource_group_name: ((iaas-configurations_0_resource_group_name))
-  ssh_private_key: ((iaas-configurations_0_ssh_private_key))
-  ssh_public_key: ((iaas-configurations_0_ssh_public_key))
+  resource_group_name: ((pcf_resource_group_name))
+  ssh_private_key: ((ops_manager_ssh_private_key))
+  ssh_public_key: ((ops_manager_ssh_public_key))
   storage_account_type: Premium_LRS
-  subscription_id: ((iaas-configurations_0_subscription_id))
-  tenant_id: ((iaas-configurations_0_tenant_id))
+  subscription_id: ((subscription_id))
+  tenant_id: ((tenant_id))
 network-assignment:
   network:
     name: infrastructure
