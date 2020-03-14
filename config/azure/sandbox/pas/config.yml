@@ -304,6 +304,8 @@ product-properties:
     value: making's Azure AD
   .properties.uaa.saml.email_attribute:
     value: user.mail
+  .properties.uaa.saml.external_groups_attribute:
+    value: user.groups
   .properties.uaa.saml.first_name_attribute:
     value: user.givenname
   .properties.uaa.saml.last_name_attribute:
