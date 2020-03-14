@@ -1,0 +1,62 @@
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: hashicorp/terraform
+    tag: 0.11.14
+inputs:
+- name: terraform-tfstate
+outputs:
+- name: vars
+run:
+  path: sh
+  args:
+  - -c
+  - |
+    set -e
+    for v in infrastructure_subnet_name \
+             network_name \
+             ops_manager_private_ip \
+             ops_manager_public_ip \
+             ops_manager_security_group_name \
+             ops_manager_ssh_public_key \
+             ops_manager_storage_account \
+             pcf_resource_group_name \
+             bosh_root_storage_account \
+             client_id \
+             client_secret \
+             bosh_deployed_vms_security_group_name \
+             ops_manager_ssh_public_key \
+             subscription_id \
+             tenant_id \
+             infrastructure_subnet_cidr \
+             infrastructure_subnet_gateway \
+             pas_subnet_name \
+             pas_subnet_cidr \
+             pas_subnet_gateway \
+             services_subnet_name \
+             services_subnet_cidr \
+             services_subnet_gateway \
+             apps_domain \
+             sys_domain \
+             web_lb_name \
+             diego_ssh_lb_name \
+             cf_droplets_storage_container \
+             cf_packages_storage_container \
+             cf_buildpacks_storage_container \
+             cf_resources_storage_container \
+             cf_storage_account_name \
+             cf_storage_account_access_key \
+             ;do
+      echo "${v}: $(terraform output -state=terraform-tfstate/terraform.tfstate ${v})" >> vars/terraform-output.yml
+    done
+    cat <<EOF >> vars/terraform-output.yml
+    ops_manager_ssh_private_key: |
+    $(terraform output -state=terraform-tfstate/terraform.tfstate ops_manager_ssh_private_key | sed 's/^/  /g')
+    EOF
+    # Reserved IP Ranges
+    cat <<EOF >> vars/terraform-output.yml
+    infrastructure_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway | sed 's/1$/9/')
+    pas_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway | sed 's/1$/9/')
+    services_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway | sed 's/1$/9/')
+    EOF
