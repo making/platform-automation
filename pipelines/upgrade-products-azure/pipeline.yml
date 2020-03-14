@@ -1,0 +1,325 @@
+resource_types:
+- name: azure-blobstore
+  type: docker-image
+  source:
+    repository: pcfabr/azure-blobstore-resource
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+- name: slack-notifier
+  type: docker-image
+  source:
+    repository: mockersf/concourse-slack-notifier
+
+resources:
+- name: config
+  type: git
+  source:
+    uri: https://github.com/making/platform-automation.git
+- name: terraform-tfstate
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: terraform.tfstate
+- name: platform-automation
+  type: pivnet
+  source:
+    product_slug: platform-automation
+    api_token: ((pivnet_api_token))
+- name: pas
+  type: pivnet
+  check_every: 30m
+  source:
+    api_token: ((pivnet_api_token))
+    product_slug: elastic-runtime
+    product_version: ^2\.8\..*$
+- name: stemcell-621
+  type: pivnet
+  check_every: 30m
+  source:
+    api_token: ((pivnet_api_token))
+    product_slug: stemcells-ubuntu-xenial
+    product_version: ^621\..*$
+- name: slack
+  type: slack-notifier
+  source:
+    url: ((slack_webhook_url))
+- name: certificates
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: certificates.tgz
+
+prepare-tasks-with-secrets: &prepare-tasks-with-secrets
+  image: platform-automation-image
+  file: platform-automation-tasks/tasks/prepare-tasks-with-secrets.yml
+  params:
+    CONFIG_PATHS: config/config/azure/sandbox
+    VARS_PATHS: vars
+  input_mapping:
+    tasks: platform-automation-tasks
+  output_mapping:
+    tasks: platform-automation-tasks
+
+om-params: &om-params
+  OM_USERNAME: ((om_username))
+  OM_PASSWORD: ((om_password))
+  OM_TARGET: https://pcf.((dns_subdomain)).((dns_suffix))
+  OM_SKIP_SSL_VALIDATION: true
+
+jobs:
+- name: upload-pas
+  plan:
+  - in_parallel:
+    - get: product
+      resource: pas
+      params:
+        globs: ["cf-*.pivotal"]
+      trigger: true
+    - get: stemcell
+      resource: stemcell-621
+      params:
+        globs: ["*azure*"]
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - in_parallel:
+    - task: upload-product
+      attempts: 3
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-product.yml
+      input_mapping:
+        env: config
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      on_success:
+        put: slack
+        params:
+          alert_type: success
+          message: "Suceeded to upload a new PAS tile"
+      on_failure:
+        put: slack
+        params:
+          alert_type: failed
+          message: "Failed to upload a new PAS tile"
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      input_mapping:
+        env: config
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+- name: stage-pas
+  plan:
+  - in_parallel:
+    - get: product
+      passed:
+      - upload-pas
+      resource: pas
+      params:
+        globs: ["cf-*.pivotal"]
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - in_parallel:
+    - task: stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/stage-product.yml
+      input_mapping:
+        env: config
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+
+- name: configure-pas
+  plan:
+  - in_parallel:
+    - get: product
+      passed:
+      - stage-pas
+      resource: pas
+      params:
+        globs: ["cf-*.pivotal"]
+      trigger: true
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: certificates
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: update-vars
+    params:
+      SUBDOMAIN: ((dns_subdomain)).((dns_suffix))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: vars
+      - name: certificates
+      outputs:
+      - name: vars
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          tar xzf certificates/certificates.tgz
+
+          cp vars/terraform-output.yml terraform-output.yml
+          bosh interpolate terraform-output.yml \
+          -o <(cat <<EOF
+          - type: replace
+            path: /router_cert_pem
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.crt | sed 's/^/    /')
+          - type: replace
+            path: /router_private_key_pem
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.key | sed 's/^/    /')
+          EOF
+          ) > vars/terraform-output.yml    
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/azure/sandbox/pas/config.yml
+      VARS_FILES: vars/terraform-output.yml
+
+- name: see-changes-pas
+  plan:
+  - in_parallel:
+    - get: product
+      passed:
+      - configure-pas
+      resource: pas
+      params:
+        globs: ["cf-*.pivotal"]
+      trigger: true
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: see-changes
+    params:
+      <<: *om-params
+      PRODUCT_NAME: cf
+    image: platform-automation-image
+    config:
+      platform: linux
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -ex
+          DEPLOYMENT_NAME=$(om deployed-manifest -p $PRODUCT_NAME | bosh int - --path /name)
+          om curl -s -p /api/v0/products/$DEPLOYMENT_NAME/diff > diff.json
+          echo "== Manifest =="
+          bosh interpolate diff.json --path /manifest/diff
+          echo "== Runtime Configs =="
+          bosh interpolate diff.json --path /runtime_configs
+    on_success:
+      put: slack
+      params:
+        alert_type: success
+        message: "Suceeded to configure PAS. See changes."
+    on_failure:
+      put: slack
+      params:
+        alert_type: failed
+        message: "Failed to configure PAS."
+
+- name: apply-changes
+  plan:
+  - put: slack
+    params:
+      alert_type: custom
+      message: "Start apply changes"
+  - in_parallel:
+    - get: product
+      passed:
+      - see-changes-pas
+      resource: pas
+      params:
+        globs: ["cf-*.pivotal"]
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: apply-changes
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/apply-changes.yml
+    input_mapping:
+      env: config
+    on_success:
+      put: slack
+      params:
+        alert_type: success
+        message: "Suceeded to apply changes products"
+    on_failure:
+      put: slack
+      params:
+        alert_type: failed
+        message: "Failed to apply changes products"
