@@ -60,3 +60,8 @@ run:
     pas_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway | sed 's/1$/9/')
     services_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway | sed 's/1$/9/')
     EOF
+    # ETC
+    cat <<EOF >> vars/terraform-output.yml
+    router_cert_pem: TO BE UPDATED IN JOB
+    router_private_key_pem: TO BE UPDATED IN JOB
+    EOF
