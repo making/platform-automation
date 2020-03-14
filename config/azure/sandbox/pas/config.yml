@@ -298,22 +298,26 @@ product-properties:
     selected_option: disable
     value: disable
   .properties.uaa:
-    selected_option: internal
-    value: internal
-  .properties.uaa.internal.password_expires_after_months:
-    value: 0
-  .properties.uaa.internal.password_max_retry:
-    value: 5
-  .properties.uaa.internal.password_min_length:
-    value: 0
-  .properties.uaa.internal.password_min_lowercase:
-    value: 0
-  .properties.uaa.internal.password_min_numeric:
-    value: 0
-  .properties.uaa.internal.password_min_special:
-    value: 0
-  .properties.uaa.internal.password_min_uppercase:
-    value: 0
+    selected_option: saml
+    value: saml
+  .properties.uaa.saml.display_name:
+    value: making's Azure AD
+  .properties.uaa.saml.email_attribute:
+    value: user.mail
+  .properties.uaa.saml.first_name_attribute:
+    value: user.givenname
+  .properties.uaa.saml.last_name_attribute:
+    value: user.surname
+  .properties.uaa.saml.name_id_format:
+    value: urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+  .properties.uaa.saml.require_signed_assertions:
+    value: true
+  .properties.uaa.saml.sign_auth_requests:
+    value: true
+  .properties.uaa.saml.sso_name:
+    value: demo-sso
+  .properties.uaa.saml.sso_url:
+    value: https://login.microsoftonline.com/9d14e56a-b1df-4955-9dc6-0a5833c58a1f/federationmetadata/2007-06/federationmetadata.xml?appid=46dd4d0d-5fd9-4be9-b93e-40965c2b6db7
   .properties.uaa_database:
     selected_option: internal_mysql
     value: internal_mysql
