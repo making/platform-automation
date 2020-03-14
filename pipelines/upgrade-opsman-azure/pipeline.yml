@@ -1,0 +1,261 @@
+resource_types:
+- name: azure-blobstore
+  type: docker-image
+  source:
+    repository: pcfabr/azure-blobstore-resource
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+- name: slack-notifier
+  type: docker-image
+  source:
+    repository: mockersf/concourse-slack-notifier
+
+resources:
+- name: config
+  type: git
+  source:
+    uri: https://github.com/making/platform-automation.git
+    branch: master
+- name: terraform-tfstate
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: terraform.tfstate
+- name: platform-automation
+  type: pivnet
+  source:
+    product_slug: platform-automation
+    api_token: ((pivnet_api_token))
+- name: platform-automation-state
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: state.yml   
+- name: slack
+  type: slack-notifier
+  source:
+    url: ((slack_webhook_url))
+- name: opsman
+  type: pivnet
+  source:
+    api_token: ((pivnet_api_token))
+    product_slug: ops-manager
+    product_version: ^2\.8\..*$
+
+prepare-tasks-with-secrets: &prepare-tasks-with-secrets
+  image: platform-automation-image
+  file: platform-automation-tasks/tasks/prepare-tasks-with-secrets.yml
+  params:
+    CONFIG_PATHS: config/config/azure/sandbox
+    VARS_PATHS: vars
+  input_mapping:
+    tasks: platform-automation-tasks
+  output_mapping:
+    tasks: platform-automation-tasks
+
+om-params: &om-params
+  OM_USERNAME: ((om_username))
+  OM_PASSWORD: ((om_password))
+  OM_TARGET: https://pcf.((dns_subdomain)).((dns_suffix))
+  OM_SKIP_SSL_VALIDATION: true
+
+jobs:
+- name: notify-new-version
+  plan:
+  - get: opsman
+    params:
+      globs: ["ops-manager-azure*.yml"]
+    trigger: true
+  - put: slack
+    params:
+      alert_type: custom
+      message: "New Ops Manager has released!"
+
+- name: update-opsman
+  plan:
+  - in_parallel:
+    - get: opsman
+      passed:
+      - notify-new-version
+      params:
+        globs: ["ops-manager-azure*.yml"]
+    - get: terraform-tfstate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: platform-automation-state
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: export-installation
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/export-installation.yml
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      INSTALLATION_FILE: installation.zip
+    input_mapping:
+      env: config
+  - task: upgrade-opsman
+    params:
+      DIRECTOR_CONFIG_FILE: config/azure/sandbox/director/config.yml
+      VARS_FILES: vars/terraform-output.yml
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/upgrade-opsman.yml
+    input_mapping:
+      state: platform-automation-state
+      image: opsman
+      env: config
+  ensure:
+    put: platform-automation-state
+    params:
+      file: generated-state/state.yml
+
+- name: configure-director
+  plan:
+  - in_parallel:
+    - get: opsman
+      passed:
+      - update-opsman
+      params:
+        globs: ["ops-manager-azure*.yml"]
+      trigger: true
+    - get: terraform-tfstate
+      passed:
+      - update-opsman
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-director
+    params:
+      DIRECTOR_CONFIG_FILE: config/azure/sandbox/director/config.yml
+      VARS_FILES: vars/terraform-output.yml
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-director.yml
+    input_mapping:
+      env: config
+
+- name: see-changes
+  plan:
+  - in_parallel:
+    - get: opsman
+      passed:
+      - configure-director
+      params:
+        globs: ["ops-manager-azure*.yml"]
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: see-changes
+    params:
+      <<: *om-params
+      PRODUCT_NAME: cf
+    image: platform-automation-image
+    config:
+      platform: linux
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -ex
+          om curl -s -p /api/v0/director/diff > diff.json
+          echo "== Manifest =="
+          bosh interpolate diff.json --path /manifest/diff
+          echo "== Cloud Config =="
+          bosh interpolate diff.json --path /cloud_config/diff
+          echo "== Runtime Configs =="
+          bosh interpolate diff.json --path /runtime_configs
+          echo "== Cpi Configs =="
+          bosh interpolate diff.json --path /cpi_configs
+    on_success:
+      put: slack
+      params:
+        alert_type: success
+        message: "Successfully configured new Opsmanager. See changes."
+    on_failure:
+      put: slack
+      params:
+        alert_type: failed
+        message: "Failed to configure new Opsmanager."
+
+- name: apply-director-changes
+  plan:
+  - put: slack
+    params:
+      alert_type: custom
+      message: "Start apply changes for BOSH director"
+  - in_parallel:
+    - get: opsman
+      passed:
+      - see-changes
+      params:
+        globs: ["ops-manager-azure*.yml"]
+    - get: terraform-tfstate
+      passed:
+      - configure-director
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: apply-director-changes
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/apply-director-changes.yml
+    input_mapping:
+      env: config
+    on_success:
+      put: slack
+      params:
+        alert_type: success
+        message: "Succeded to apply changes."
+    on_failure:
+      put: slack
+      params:
+        alert_type: failed
+        message: "Failed to apply changes."
+
