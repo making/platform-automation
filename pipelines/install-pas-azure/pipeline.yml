@@ -48,72 +48,6 @@ resources:
     container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
     versioned_file: certificates.tgz
 
-create-vars: &create-vars
-  config:
-    platform: linux
-    image_resource:
-      type: docker-image
-      source:
-        repository: hashicorp/terraform
-        tag: 0.11.14
-    inputs:
-    - name: terraform-tfstate
-    outputs:
-    - name: vars
-    run:
-      path: sh
-      args:
-      - -c
-      - |
-        set -e
-        for v in infrastructure_subnet_name \
-                 network_name \
-                 ops_manager_private_ip \
-                 ops_manager_public_ip \
-                 ops_manager_security_group_name \
-                 ops_manager_ssh_public_key \
-                 ops_manager_storage_account \
-                 pcf_resource_group_name \
-                 infrastructure_subnet_name \
-                 infrastructure_subnet_cidr \
-                 infrastructure_subnet_gateway \
-                 pas_subnet_name \
-                 pas_subnet_cidr \
-                 pas_subnet_gateway \
-                 services_subnet_name \
-                 services_subnet_cidr \
-                 services_subnet_gateway \
-                 apps_domain \
-                 sys_domain \
-                 web_lb_name \
-                 diego_ssh_lb_name \
-                 cf_buildpacks_storage_container \
-                 cf_droplets_storage_container \
-                 cf_packages_storage_container \
-                 cf_resources_storage_container \
-                 cf_storage_account_name \
-                 cf_storage_account_access_key \
-                 ;do
-          echo "${v}: $(terraform output -state=terraform-tfstate/terraform.tfstate ${v})" >> vars/terraform-output.yml
-        done
-        cat <<EOF >> vars/terraform-output.yml
-        iaas-configurations_0_bosh_storage_account_name: $(terraform output -state=terraform-tfstate/terraform.tfstate bosh_root_storage_account)
-        iaas-configurations_0_client_id: $(terraform output -state=terraform-tfstate/terraform.tfstate client_id)
-        iaas-configurations_0_client_secret: $(terraform output -state=terraform-tfstate/terraform.tfstate client_secret)
-        iaas-configurations_0_default_security_group: $(terraform output -state=terraform-tfstate/terraform.tfstate bosh_deployed_vms_security_group_name)
-        iaas-configurations_0_resource_group_name: $(terraform output -state=terraform-tfstate/terraform.tfstate pcf_resource_group_name)
-        iaas-configurations_0_ssh_private_key: |
-        $(terraform output -state=terraform-tfstate/terraform.tfstate ops_manager_ssh_private_key | sed 's/^/  /')
-        iaas-configurations_0_ssh_public_key: $(terraform output -state=terraform-tfstate/terraform.tfstate ops_manager_ssh_public_key)
-        iaas-configurations_0_subscription_id: $(terraform output -state=terraform-tfstate/terraform.tfstate subscription_id)
-        iaas-configurations_0_tenant_id: $(terraform output -state=terraform-tfstate/terraform.tfstate tenant_id)                
-        infrastructure_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate infrastructure_subnet_gateway | sed 's/.1$/.9/')
-        pas_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate pas_subnet_gateway | sed 's/.1$/.9/')
-        services_subnet_reserved_ip_ranges: $(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway)-$(terraform output -state=terraform-tfstate/terraform.tfstate services_subnet_gateway | sed 's/.1$/.9/')
-        router_cert_pem: TO BE UPDATED IN JOB
-        router_private_key_pem: TO BE UPDATED IN JOB
-        EOF
-
 prepare-tasks-with-secrets: &prepare-tasks-with-secrets
   image: platform-automation-image
   file: platform-automation-tasks/tasks/prepare-tasks-with-secrets.yml
@@ -526,7 +460,7 @@ jobs:
     - get: terraform-template
     - get: platform-automation-state
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: download-product
@@ -568,7 +502,7 @@ jobs:
     - get: config
     - get: terraform-template
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: configure-authentication
@@ -640,7 +574,7 @@ jobs:
     - get: config
     - get: terraform-template
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: configure-director
@@ -674,7 +608,7 @@ jobs:
     - get: config
     - get: terraform-template
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: download-product
@@ -724,7 +658,7 @@ jobs:
     - get: terraform-template
     - get: certificates
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: update-vars
@@ -792,7 +726,7 @@ jobs:
     - get: config
     - get: terraform-template
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: apply-changes
@@ -821,7 +755,7 @@ jobs:
     - get: config
     - get: terraform-template
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: delete-installation
@@ -854,7 +788,7 @@ jobs:
     - get: terraform-template
     - get: platform-automation-state
   - task: create-vars
-    <<: *create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
   - task: prepare-tasks-with-secrets
     <<: *prepare-tasks-with-secrets
   - task: delete-vm
