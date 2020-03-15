@@ -47,6 +47,13 @@ resources:
     storage_account_key: ((controlplane_ci_storage_account_access_key))
     container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
     versioned_file: certificates.tgz
+- name: ssh-opsman-script
+  type: azure-blobstore
+  source:
+    storage_account_name: ((controlplane_ci_account_name))
+    storage_account_key: ((controlplane_ci_storage_account_access_key))
+    container: ((dns_subdomain))-((controlplane_ci_storage_container_name))
+    versioned_file: ssh-opsman-((dns_subdomain)).sh
 
 prepare-tasks-with-secrets: &prepare-tasks-with-secrets
   image: platform-automation-image
@@ -59,11 +66,18 @@ prepare-tasks-with-secrets: &prepare-tasks-with-secrets
   output_mapping:
     tasks: platform-automation-tasks
 
+om-params: &om-params
+  OM_USERNAME: ((om_username))
+  OM_PASSWORD: ((om_password))
+  OM_TARGET: https://pcf.((dns_subdomain)).((dns_suffix))
+  OM_SKIP_SSL_VALIDATION: true
+
 groups:
 - name: install
   jobs:
   - terraform-plan
   - terraform-apply
+  - create-ssh-opsman-script
   - generate-certificate
   - register-dns-record
   - install-ops-manager
@@ -73,6 +87,9 @@ groups:
   - upload-and-stage-pas
   - configure-pas
   - apply-changes
+  - initialize-ops-manager
+  - initialize-pas
+  - create-pas-uaa-client-cf-mgmt
 - name: uninstall
   jobs:
   - delete-installation
@@ -369,6 +386,42 @@ jobs:
     params:
       file: lego/certificates.tgz
 
+- name: create-ssh-opsman-script
+  plan:
+  - get: terraform-tfstate
+    passed:
+    - terraform-apply
+    trigger: true
+  - task: terraform-output
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: hashicorp/terraform
+          tag: 0.11.14
+      inputs:
+      - name: terraform-tfstate
+      outputs:
+      - name: output
+      run:
+        path: sh
+        args:
+        - -c
+        - |
+          set -e
+          cat <<EOF > output/ssh-opsman-((dns_subdomain)).sh 
+          #!/bin/bash
+          cat <<PEM > /tmp/opsman-((dns_subdomain)).pem
+          $(terraform output -state=terraform-tfstate/terraform.tfstate ops_manager_ssh_private_key)
+          PEM
+          chmod 600 /tmp/opsman-((dns_subdomain)).pem
+          ssh -o "StrictHostKeyChecking=no" -o "ServerAliveInterval=15" -i /tmp/opsman-((dns_subdomain)).pem ubuntu@$(terraform output -state=terraform-tfstate/terraform.tfstate ops_manager_dns) "\$@"
+          EOF
+  - put: ssh-opsman-script
+    params:
+      file: output/ssh-opsman-((dns_subdomain)).sh
+
 - name: register-dns-record
   plan:
   - get: terraform-tfstate
@@ -435,7 +488,7 @@ jobs:
           done
 
           set -e
-          
+
           az network dns record-set list \
             --output table \
             --resource-group ${RESOURCE_GROUP} \
@@ -739,6 +792,138 @@ jobs:
       env: config
     params:
       ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+
+- name: initialize-ops-manager
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: ssh-opsman-script
+  - task: initialize-opsmanager
+    params:
+      <<: *om-params
+      CF_CLI_VERSION: "6.50.0"
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: ssh-opsman-script
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          sh ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh "$(cat <<EOF
+          cat <<ENV | sudo tee -a /etc/profile.d/bosh.sh > /dev/null
+          $(om bosh-env)
+          ENV
+          EOF
+          )"
+          sh ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+            "wget \"https://packages.cloudfoundry.org/stable?release=linux64-binary&version=${CF_CLI_VERSION}&source=github-rel\" -O cf.tgz && \
+            tar xzvf cf.tgz && \
+            sudo mv cf /usr/local/bin/ && \
+            rm -f LICENSE NOTICE cf.tgz"
+
+- name: initialize-pas
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - initialize-ops-manager
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: ssh-opsman-script
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: initialize-pas
+    params:
+      <<: *om-params
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: ssh-opsman-script
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          chmod +x ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh
+          ADMIN_PASSWORD=$(om credentials -p cf -c .uaa.admin_credentials -f password)
+          ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+          "cf api api.sys.((dns_subdomain)).((dns_suffix)) && \
+           cf auth admin ${ADMIN_PASSWORD} && \
+           cf enable-feature-flag diego_docker"
+
+- name: create-pas-uaa-client-cf-mgmt
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: ssh-opsman-script
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: create-uaa-client
+    params:
+      <<: *om-params
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: ssh-opsman-script
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          chmod +x ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh
+          ADMIN_CLIENT_SECRET=$(om credentials -p cf -c .uaa.admin_client_credentials -t json | bosh int - --path /password | head -1)
+          ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+          "uaac target uaa.sys.((dns_subdomain)).((dns_suffix)); \
+          uaac token client get admin -s ${ADMIN_CLIENT_SECRET}; \
+          uaac client add cf-mgmt \
+            --name cf-mgmt \
+            --secret ((cf_mgmt_secret)) \
+            --authorized_grant_types client_credentials,refresh_token \
+            --authorities cloud_controller.admin,scim.read,scim.write"
 
 - name: delete-installation
   serial: true
