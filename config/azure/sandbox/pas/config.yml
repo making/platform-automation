@@ -125,7 +125,7 @@ product-properties:
   .properties.enable_garden_containerd_mode:
     value: true
   .properties.enable_smb_volume_driver:
-    value: false
+    value: true
   .properties.enable_tls_to_internal_pxc:
     value: false
   .properties.enable_v1_firehose:
