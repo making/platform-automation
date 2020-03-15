@@ -875,7 +875,9 @@ jobs:
           ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
           "cf api api.sys.((dns_subdomain)).((dns_suffix)) && \
            cf auth admin ${ADMIN_PASSWORD} && \
-           cf enable-feature-flag diego_docker"
+           cf enable-feature-flag diego_docker && \
+           cf enable-service-access smb -b smbbroker && \
+           cf service-access"
 
 - name: create-pas-uaa-client-cf-mgmt
   plan:
