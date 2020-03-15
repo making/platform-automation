@@ -619,7 +619,7 @@ errand-config:
   rotate_cc_database_key:
     post-deploy-state: false
   smbbrokerpush:
-    post-deploy-state: false
+    post-deploy-state: true
   smoke_tests:
     post-deploy-state: true
   test-autoscaling:
