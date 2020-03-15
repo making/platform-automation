@@ -423,6 +423,7 @@ jobs:
                    --service-principal \
                    --tenant ${TENANT_ID} > /dev/null
           set -x
+          set +e
           
           for n in $(cat terraform-output/ns.json | jq -r '.value | join(" ")'); do
             az network dns record-set ns add-record \
@@ -433,6 +434,8 @@ jobs:
               --ttl 60
           done
 
+          set -e
+          
           az network dns record-set list \
             --output table \
             --resource-group ${RESOURCE_GROUP} \
