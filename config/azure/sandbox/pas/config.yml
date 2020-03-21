@@ -160,7 +160,7 @@ product-properties:
   .properties.log_cache_max_per_source:
     value: 100000
   .properties.metric_registrar_blacklisted_tags:
-    value: deployment,job,index,id
+    value: deployment,job,index
   .properties.metric_registrar_enabled:
     value: true
   .properties.metric_registrar_scrape_interval_in_seconds:
