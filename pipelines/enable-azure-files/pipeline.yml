@@ -1,0 +1,58 @@
+jobs:
+- name: create-share
+  plan:
+  - task: create-container
+    params:
+      TENANT_ID: ((tenant_id))
+      CLIENT_ID: ((client_id))
+      CLIENT_SECRET: ((client_secret))
+      LOCATION: ((location))
+      RESOURCE_GROUP: ((resource_group))
+      STORAGE_ACCOUNT_NAME: ((storage_account_name))
+      SHARE_NAME: ((share_name))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: microsoft/azure-cli
+          tag: latest
+      run:
+        path: bash
+        args: 
+        - -cex
+        - |
+          az login --username ${CLIENT_ID} \
+                   --password ${CLIENT_SECRET} \
+                   --service-principal \
+                   --tenant ${TENANT_ID} 
+          
+          az group create --name ${RESOURCE_GROUP} \
+            --location "${LOCATION}"
+          
+          az storage account create --name ${STORAGE_ACCOUNT_NAME} \
+            --resource-group ${RESOURCE_GROUP} \
+            --location "${LOCATION}" \
+            --kind StorageV2 \
+            --sku Standard_ZRS \
+            --enable-large-file-share \
+            --output none
+
+          # az storage account create --name ${STORAGE_ACCOUNT_NAME} \
+          #   --resource-group ${RESOURCE_GROUP} \
+          #   --location "${LOCATION}" \
+          #   --kind FileStorage \
+          #   --sku Premium_LRS \
+          #   --output none
+          
+          STORAGE_ACCOUNT_KEY=$(az storage account keys list \
+              --resource-group ${RESOURCE_GROUP} \
+              --account-name ${STORAGE_ACCOUNT_NAME} \
+              --query "[0].value" | tr -d '"')
+
+          az storage share create \
+              --account-name ${STORAGE_ACCOUNT_NAME} \
+              --account-key ${STORAGE_ACCOUNT_KEY} \
+              --name ${SHARE_NAME} \
+              --quota 1024 \
+              --output none              
