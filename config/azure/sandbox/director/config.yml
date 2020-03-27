@@ -5,7 +5,7 @@ iaas-configurations:
   client_id: ((client_id))
   client_secret: ((client_secret))
   cloud_storage_type: managed_disks
-  default_security_group: ((ops_manager_security_group_name))
+  default_security_group: ((bosh_deployed_vms_security_group_name))
   deployed_cloud_storage_type: managed_disks
   environment: AzureCloud
   name: default
