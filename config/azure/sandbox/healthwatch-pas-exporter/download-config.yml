@@ -1,0 +1,16 @@
+pivnet-api-token: ((pivnet_api_token))
+pivnet-file-glob: "healthwatch-pas-exporter-*.pivotal"       # must be quoted if starting with a *
+pivnet-product-slug: p-healthwatch
+
+# Either product-version OR product-version-regex is required
+# product-version-regex: ^1\.2\..*$ # must not be quoted
+product-version-regex: ^2\.0\..*$
+
+# Optional
+# pivnet-disable-ssl: true  # default - false
+stemcell-iaas: azure        # aws|azure|google|openstack|vsphere
+                            # will attempt to download the latest
+                            # stemcell for the product (if available)
+# blobstore-bucket: bucket  # if set, product files will have their slug and
+                            # version prepended. Set if the product will
+                            # ever be stored in a blobstore
