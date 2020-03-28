@@ -14,7 +14,8 @@ product-properties:
       private_key_pem: ((sslipio_key))
   .properties.canary_exporter_targets:
     value:
-    - address: https://apps.sys.sandbox.a.ik.am
+    - address: https://apps.((sys_domain))
+    - address: https://api.((sys_domain))/v2/info
   .properties.grafana_authentication:
     selected_option: basic
     value: basic
