@@ -139,7 +139,7 @@ resource-config:
     instances: automatic
     internet_connected: false
     persistent_disk:
-      size_mb: "5120"
+      size_mb: "10240"
     swap_as_percent_of_memory_size: automatic
   pxc-proxy:
     max_in_flight: 5
