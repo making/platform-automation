@@ -64,4 +64,6 @@ run:
     cat <<EOF >> vars/terraform-output.yml
     router_cert_pem: TO BE UPDATED IN JOB
     router_private_key_pem: TO BE UPDATED IN JOB
+    bosh_deployments_exporter_bosh_client_id: TO BE UPDATED IN JOB
+    bosh_deployments_exporter_bosh_client_secret: TO BE UPDATED IN JOB
     EOF
