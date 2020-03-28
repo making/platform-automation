@@ -1,5 +1,5 @@
 pivnet-api-token: ((pivnet_api_token))
-pivnet-file-glob: "healthwatch-2-*.pivotal"       # must be quoted if starting with a *
+pivnet-file-glob: "healthwatch-2*.pivotal"       # must be quoted if starting with a *
 pivnet-product-slug: p-healthwatch
 
 # Either product-version OR product-version-regex is required
