@@ -5,7 +5,7 @@ product-properties:
   .grafana.enable_login_form:
     value: true
   .grafana.pas_version:
-    value: disabled
+    value: 2.8
   .grafana.pks_version:
     value: disabled
   .grafana.ssl_certificates:
