@@ -167,7 +167,7 @@ resource-config:
     swap_as_percent_of_memory_size: automatic
 errand-config:
   smoke-test:
-    post-deploy-state: true
+    post-deploy-state: false
   update-admin-password:
     post-deploy-state: true
 
