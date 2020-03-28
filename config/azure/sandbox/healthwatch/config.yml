@@ -1,0 +1,173 @@
+product-name: p-healthwatch2
+product-properties:
+  .grafana.enable_indipro_integration:
+    value: true
+  .grafana.enable_login_form:
+    value: true
+  .grafana.pas_version:
+    value: disabled
+  .grafana.pks_version:
+    value: disabled
+  .grafana.ssl_certificates:
+    value:
+      # self-signed certs for *.sslip.io
+      cert_pem: |
+        -----BEGIN CERTIFICATE-----
+        MIIDbDCCAlSgAwIBAgIVAPMYXSfcQ7T1aEn5W08vMlHDWIh4MA0GCSqGSIb3DQEB
+        CwUAMB8xCzAJBgNVBAYTAlVTMRAwDgYDVQQKDAdQaXZvdGFsMB4XDTIwMDMyNzA5
+        MjMxNVoXDTIyMDMyNzA5MjMxNVowNDELMAkGA1UEBhMCVVMxEDAOBgNVBAoMB1Bp
+        dm90YWwxEzARBgNVBAMMCiouc3NsaXAuaW8wggEiMA0GCSqGSIb3DQEBAQUAA4IB
+        DwAwggEKAoIBAQCd/YUYVc+giVyOg/eDb/jYwHG/UYoGeEpnbC/en92SqlSD0Rzc
+        /J6/+fj9qZtm5xqulIt+VTGMEy1J79gvXF1HtL6UThlC7rVs5h1Wz4qremLekyj7
+        QJIHe8XXWBWTx5nM8g03GNBLc0loP36mi2u3i0eiKlQVkXhIoM06ZEPHCK/w0/U2
+        WYvGbBPkJYhXlh1WY1lyAPfA74DiJTdOgpRL63GTCAO1h5H9k2uHGPtgb5xvvOkj
+        /d45KsfbOlCmo0plFbBXsluzvdZX5xAZno1taqkIgJpWLlSYnfUubOJUhLIXKrM5
+        gLn6CkemdvFhkx7JZo53MF/UDa9JkvyOC6A1AgMBAAGjgYkwgYYwHQYDVR0OBBYE
+        FO01Zn/wrP+Si6S2PyGCHrfxxLtgMB8GA1UdIwQYMBaAFFVn8mx/E7l7lCfUEaV+
+        iR9mZhxOMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcDATAOBgNVHQ8BAf8E
+        BAMCB4AwFQYDVR0RBA4wDIIKKi5zc2xpcC5pbzANBgkqhkiG9w0BAQsFAAOCAQEA
+        3P2nGYaWaHr9VoUHHRg0Jh0kq0kOIoJfTb29+HR1sIY4N7reuI3prG9MS9Je9O7l
+        rLCWR9+4AH6W1k2RfomuDXpiiEp9OmglDkXa533f9ItlIcVUdz85u2f86sVAyhZO
+        /jcEOootXAFcmw2ngLCamx3jqd3jHZWKBP9gIQ7XoI+0tVEzQpVKJ96sO/77hFlF
+        hZ06WzqHJH5CObrqzgggtVx4fWQaSHf3SDZH1S1TbZkFXEuKesGybwKs38utL8iF
+        OOv01MKTR/SBLsFP1b6iq7+nS4jnUzKyaO1hmxpgrz0R5zppflY5zxDuOEY3cidc
+        FJmpJZCbt1e7bX6d+QwTFA==
+        -----END CERTIFICATE-----
+      private_key_pem: |
+        -----BEGIN RSA PRIVATE KEY-----
+        MIIEpAIBAAKCAQEAnf2FGFXPoIlcjoP3g2/42MBxv1GKBnhKZ2wv3p/dkqpUg9Ec
+        3Pyev/n4/ambZucarpSLflUxjBMtSe/YL1xdR7S+lE4ZQu61bOYdVs+Kq3pi3pMo
+        +0CSB3vF11gVk8eZzPINNxjQS3NJaD9+potrt4tHoipUFZF4SKDNOmRDxwiv8NP1
+        NlmLxmwT5CWIV5YdVmNZcgD3wO+A4iU3ToKUS+txkwgDtYeR/ZNrhxj7YG+cb7zp
+        I/3eOSrH2zpQpqNKZRWwV7Jbs73WV+cQGZ6NbWqpCICaVi5UmJ31LmziVISyFyqz
+        OYC5+gpHpnbxYZMeyWaOdzBf1A2vSZL8jgugNQIDAQABAoIBAQCMu2m1darPa8xg
+        vrjaAgH+wd4Q+AclID3Wxo4Vlv3+SW+jQ8CcMQMQKxFak5x0G2SvIm7nh+fsyKBM
+        /jLqbTJCT4R8At2Ju60sZga4b4MsoIY1kYyt0qTBucVPv4zo6KHd57dR3u6cZwN6
+        sySUIhk/k/epQl9IHx6wQ1zMqMefIH1jlouibz0GF2ESpzyHgqbeNwEZmstfsH/c
+        KpdYOBpAoWxyCUI9oeUsjs8/FEMqIhcy5Y17+W0gunn66WefU9rCnv3ykFTHSl6q
+        +hE5CVMNknQ5HsOkUB9rA+en9bVKIx1g5+AypewTqI1ElROuFWJrcFmT1c16XqBz
+        v86kmD35AoGBANB1v2t07Hd1oudhk+DLb0zUp7iqN046zYOBvQS1UNtAneTPq82L
+        xdz58+8eK57wWwXMdW9XHRx41Gm/GYvOBEWkdCsF8aUlMtjTt5h71MnueZIpbhIT
+        38PEnQQFbspSbya2q+Y8Clg2mUvWu2um/mNKiigiyJE3bJsfFFY71NfDAoGBAMIF
+        RHISNOg6xTIdO+1ZGAIig1DuiTQ8IyHDHb9lMmDoK4ZPelP4SnX4Z9sjxkdsERwI
+        HAjAZwS6+voGQdt/OfuckWpwn5uN6AtyV9htotcRSYo9TCsNC41VH/gHKLZrlzMl
+        dv++BEIGbVcAWq/bXDRtZ4eB5oH3YFlzYnW2s6CnAoGAUQpVnmrYOyDKcfVnTe8I
+        l+/cPFhAI/OMTeG0IA51HqeiOn/ZpJEAHQY3JPCvuJxsZnaz+NL/CECZI3sdbVJs
+        Kr7iQo+O/8rUV6MHLwqFEPPa402j8vcy+KKJADU0ewdNGtnNPjZ9NwoS0n7qYdGL
+        +AHUcAIFwx6u5CdS+qtL9Y0CgYBi7h6lb6UsmPL+B6wL7Tbxt7lvpgGt8dAUIhJk
+        Cmyyvw+ab6I3eM428w+5zLcIqhDbU0NALyMYZWMd49zm2CuvoXkAZibsQWKFm6sx
+        P04eDcGKzJCvDvrJ+RLQ/I2E3r19JehUpQY0yGQuTY7wRpDwZqy4isMHmCS3177n
+        uN5E1wKBgQCspCPITcsVNIHSLRHrtC6L1haeiQRJzANLI30JvC9L4ffZxc9DUsBQ
+        yv26+ZvbyZzZ4JVP1pFGjpGZT3hKDFugUFKZHfHtNZutv0zr3SBobf5iQc67tQEA
+        IQS3GExdNAAmjx0q3IUC7jS+C1KEaRxVEoANjXyy+v80IFFLGnzyvg==
+        -----END RSA PRIVATE KEY-----
+  .properties.canary_exporter_targets:
+    value:
+    - address: https://apps.sys.sandbox.a.ik.am
+  .properties.grafana_authentication:
+    selected_option: basic
+    value: basic
+  .properties.pks_cluster_discovery:
+    selected_option: disabled
+    value: disabled
+  .properties.remote_write_basic_auth:
+    selected_option: disabled
+    value: disabled
+  .properties.smtp:
+    selected_option: disabled
+    value: disabled
+  .tsdb.canary_exporter_port:
+    value: 9115
+  .tsdb.disk_chunk_size:
+    value: 6144
+  .tsdb.memory_chunk_size:
+    value: 4096
+  .tsdb.remote_write_batch_send_deadline:
+    value: 5
+  # .tsdb.remote_write_certificates:
+  #   value:
+  #     cert_pem: ((tsdb_remote_write_certificates.cert_pem))
+  #     private_key_pem: ((tsdb_remote_write_certificates.private_key_pem))
+  .tsdb.remote_write_max_backoff:
+    value: 100
+  .tsdb.remote_write_max_samples_per_send:
+    value: 100
+  .tsdb.remote_write_max_shards:
+    value: 1000
+  .tsdb.remote_write_min_backoff:
+    value: 30
+  .tsdb.remote_write_min_shards:
+    value: 1
+  .tsdb.remote_write_queue_capacity:
+    value: 500
+  .tsdb.remote_write_skip_tls_verify:
+    value: false
+  .tsdb.remote_write_timeout:
+    value: 30
+  .tsdb.scrape_interval:
+    value: 15s
+network-properties:
+  network:
+    name: pas
+  other_availability_zones:
+  - name: zone-1
+  - name: zone-2
+  - name: zone-3
+  singleton_availability_zone:
+    name: zone-3
+resource-config:
+  grafana:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    # internet_connected: false
+    internet_connected: true
+    persistent_disk:
+      size_mb: "5120"
+    swap_as_percent_of_memory_size: automatic
+  pxc:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: "5120"
+    swap_as_percent_of_memory_size: automatic
+  pxc-proxy:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: "1024"
+    swap_as_percent_of_memory_size: automatic
+  tsdb:
+    max_in_flight: 1
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: "20480"
+    swap_as_percent_of_memory_size: automatic
+errand-config:
+  smoke-test:
+    post-deploy-state: true
+  update-admin-password:
+    post-deploy-state: true
+

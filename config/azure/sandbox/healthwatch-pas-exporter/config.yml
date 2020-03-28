@@ -1,0 +1,110 @@
+product-name: p-healthwatch2-pas-exporter
+product-properties:
+  .bosh-deployments-exporter.bosh_client:
+    value:
+      identity: ((bosh_deployments_exporter_bosh_client_id))
+      password: ((bosh_deployments_exporter_bosh_client_secret))
+  .bosh-health-exporter.health_check_az:
+    value: zone-3
+  .properties.exporter_scrape_port:
+    value: 9090
+network-properties:
+  network:
+    name: pas
+  other_availability_zones:
+  - name: zone-1
+  - name: zone-2
+  - name: zone-3
+  service_network:
+    name: services
+  singleton_availability_zone:
+    name: zone-3
+resource-config:
+  bosh-deployments-exporter:
+    max_in_flight: 1
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  bosh-health-exporter:
+    max_in_flight: 2
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  pas-exporter-counter:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  pas-exporter-gauge:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  pas-exporter-timer:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  pas-sli-exporter:
+    max_in_flight: 2
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+  svm-forwarder:
+    max_in_flight: 5
+    additional_networks: []
+    additional_vm_extensions: []
+    elb_names: []
+    instance_type:
+      id: Standard_F1s
+    instances: automatic
+    internet_connected: false
+    persistent_disk:
+      size_mb: automatic
+    swap_as_percent_of_memory_size: automatic
+errand-config:
+  smoke-test:
+    post-deploy-state: true
+
