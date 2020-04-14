@@ -924,7 +924,7 @@ jobs:
         - |
           set -e
           chmod +x ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh
-          ADMIN_CLIENT_SECRET=$(om credentials -p cf -c .uaa.admin_client_credentials -t json | bosh int - --path /password | head -1)
+          ADMIN_CLIENT_SECRET=$(om credentials -p cf -c .uaa.admin_client_credentials -f password)
           ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
           "uaac target uaa.sys.((dns_subdomain)).((dns_suffix)); \
           uaac token client get admin -s ${ADMIN_CLIENT_SECRET}; \
