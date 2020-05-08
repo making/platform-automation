@@ -381,7 +381,7 @@ resource-config:
     instances: 1
     internet_connected: false
     persistent_disk:
-      size_mb: automatic
+      size_mb: "10240"
     swap_as_percent_of_memory_size: automatic
   clock_global:
     max_in_flight: 1
@@ -440,7 +440,7 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: automatic
+      id: Standard_DS11_v2
     instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
@@ -510,11 +510,11 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: automatic
+      id: Standard_DS2_v2
     instances: 1
     internet_connected: false
     persistent_disk:
-      size_mb: automatic
+      size_mb: "10240"
     swap_as_percent_of_memory_size: automatic
   mysql_monitor:
     max_in_flight: 1
@@ -575,7 +575,7 @@ resource-config:
     elb_names:
     - ((web_lb_name))
     instance_type:
-      id: automatic
+      id: Standard_F1s
     instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
@@ -597,7 +597,7 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: automatic
+      id: Standard_DS1_v2
     instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
