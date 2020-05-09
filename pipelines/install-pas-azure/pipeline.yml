@@ -91,6 +91,7 @@ groups:
   - initialize-ops-manager
   - initialize-pas
   - install-elephantsql-service-broker
+  - install-log-cache-ui
   - create-pas-uaa-client-cf-mgmt
   - upload-and-stage-healthwatch
   - configure-healthwatch
@@ -946,6 +947,79 @@ jobs:
            cf create-service-broker elephantsql admin ${SPRING_SECURITY_USER_PASSWORD} https://elephantsql-service-broker.${APPS_DOMAIN} ; \
            cf enable-service-access elephantsql ; \
            cf marketplace"
+
+- name: install-log-cache-ui
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - initialize-pas
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: ssh-opsman-script
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: install-log-cache-ui
+    params:
+      <<: *om-params
+      UAA_UI_CLIENT_SECRET: ((uaa_ui_client_secret))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: ssh-opsman-script
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          chmod +x ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh
+          ADMIN_PASSWORD=$(om credentials -p cf -c .uaa.admin_credentials -f password)
+          APPS_DOMAIN=$(om credentials -p cf -c .cloud_controller.apps_domain -f value)
+          SYSTEM_DOMAIN=$(om credentials -p cf -c .cloud_controller.system_domain -f value)
+          ADMIN_CLIENT_SECRET=$(om credentials -p cf -c .uaa.admin_client_credentials -f password)
+          REDIRECT_URLS=https://log-cache-ui.${APPS_DOMAIN}/login/oauth2/code/uaa
+
+          set +e
+          ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+          "uaac target uaa.sys.((dns_subdomain)).((dns_suffix)) && \
+          uaac token client get admin -s ${ADMIN_CLIENT_SECRET} && \
+          uaac client add log_cache_ui \
+            --name log_cache_ui \
+            --secret ${UAA_UI_CLIENT_SECRET} \
+            --authorized_grant_types refresh_token,authorization_code \
+            --scope openid,doppler.firehose,logs.admin \
+            --access_token_validity 43200 \
+            --refresh_token_validity 259200 \
+            --redirect_uri ${REDIRECT_URLS}"
+          set -e
+
+          ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+          "rm -rf /tmp/log-cache-ui && \
+           cf api api.sys.((dns_subdomain)).((dns_suffix)) && \
+           cf auth admin ${ADMIN_PASSWORD} && \
+           cf enable-feature-flag diego_docker && \
+           cf create-space log-cache-ui -o system ; \
+           cf target -o system -s log-cache-ui && \
+           mkdir /tmp/log-cache-ui && \
+           cd /tmp/log-cache-ui && \
+           wget https://github.com/making/log-cache-ui/raw/master/manifest.yml && \
+           cf push --var system_domain=${SYSTEM_DOMAIN} --no-start && \
+           cf set-env log-cache-ui UAA_CLIENT_SECRET ${UAA_UI_CLIENT_SECRET} && \
+           cf start log-cache-ui"
 
 - name: create-pas-uaa-client-cf-mgmt
   plan:
