@@ -33,6 +33,7 @@ resources:
   source:
     product_slug: platform-automation
     api_token: ((pivnet_api_token))
+    product_version: ^4\.3\.6$
 - name: platform-automation-state
   type: azure-blobstore
   source:
@@ -89,6 +90,7 @@ groups:
   - apply-changes
   - initialize-ops-manager
   - initialize-pas
+  - install-elephantsql-service-broker
   - create-pas-uaa-client-cf-mgmt
   - upload-and-stage-healthwatch
   - configure-healthwatch
@@ -885,6 +887,65 @@ jobs:
            cf enable-feature-flag diego_docker && \
            cf enable-service-access smb -b smbbroker && \
            cf service-access"
+- name: install-elephantsql-service-broker
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - initialize-pas
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: ssh-opsman-script
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: install-elephantsql-service-broker
+    params:
+      <<: *om-params
+      ELEPHANTSQL_API_KEY: ((elephantsql_api_key))
+      SPRING_SECURITY_USER_PASSWORD: ((spring_security_user_password))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: ssh-opsman-script
+      run:
+        path: bash
+        args:
+        - -c
+        - |
+          set -e
+          chmod +x ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh
+          ADMIN_PASSWORD=$(om credentials -p cf -c .uaa.admin_credentials -f password)
+          APPS_DOMAIN=$(om credentials -p cf -c .cloud_controller.apps_domain -f value)
+          ssh-opsman-script/ssh-opsman-((dns_subdomain)).sh \
+          "rm -rf /tmp/elephantsql-service-broker && \
+           cf api api.sys.((dns_subdomain)).((dns_suffix)) && \
+           cf auth admin ${ADMIN_PASSWORD} && \
+           cf enable-feature-flag diego_docker && \
+           cf create-space elephantsql -o system ; \
+           cf target -o system -s elephantsql && \
+           mkdir /tmp/elephantsql-service-broker && \
+           cd /tmp/elephantsql-service-broker && \
+           wget https://github.com/making/elephantsql-service-broker/raw/master/manifest.yml && \
+           cf push --no-start && \
+           cf set-env elephantsql-service-broker ELEPHANTSQL_API_KEY ${ELEPHANTSQL_API_KEY} && \
+           cf set-env elephantsql-service-broker SPRING_SECURITY_USER_PASSWORD ${SPRING_SECURITY_USER_PASSWORD} && \
+           cf start elephantsql-service-broker && \
+           cf create-service-broker elephantsql admin ${SPRING_SECURITY_USER_PASSWORD} https://elephantsql-service-broker.${APPS_DOMAIN} ; \
+           cf enable-service-access elephantsql ; \
+           cf marketplace"
 
 - name: create-pas-uaa-client-cf-mgmt
   plan:
@@ -941,7 +1002,7 @@ jobs:
     - get: terraform-tfstate
       passed:
       - apply-changes
-      trigger: true
+      # trigger: true
     - get: platform-automation-image
       resource: platform-automation
       params:
@@ -1024,7 +1085,7 @@ jobs:
     - get: terraform-tfstate
       passed:
       - apply-changes
-      trigger: true
+      # trigger: true
     - get: platform-automation-image
       resource: platform-automation
       params:
