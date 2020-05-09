@@ -111,4 +111,75 @@ resource-configuration:
       size_mb: automatic
     swap_as_percent_of_memory_size: automatic
 vmextensions-configuration: []
-vmtypes-configuration: {}
+
+vmtypes-configuration:
+  custom_only: false
+  vm_types:
+  - name: Standard_DC1s_v2
+    cpu: 2
+    ram: 4096
+    ephemeral_disk: 65536 
+  - name: Standard_D2s_v3
+    cpu: 2
+    ram: 8192
+    ephemeral_disk: 65536  
+  - name: Standard_D4s_v3
+    cpu: 4
+    ram: 16384
+    ephemeral_disk: 65536   
+  - name: Standard_D8s_v3
+    cpu: 8
+    ram: 32768
+    ephemeral_disk: 65536         
+  - name: Standard_D2_v3
+    cpu: 2
+    ram: 8192
+    ephemeral_disk: 65536  
+  - name: Standard_D4_v3
+    cpu: 4
+    ram: 16384
+    ephemeral_disk: 65536
+  - name: Standard_D8_v3
+    cpu: 8
+    ram: 32768
+    ephemeral_disk: 65536         
+  - name: Standard_F16
+    cpu: 16
+    ram: 32768
+    ephemeral_disk: 262144
+  - name: Standard_F16s
+    cpu: 16
+    ram: 32768
+    ephemeral_disk: 1024000   
+  - name: Standard_F16s_v2
+    cpu: 16
+    ram: 32768
+    ephemeral_disk: 131072
+  - name: Standard_F8s
+    cpu: 8
+    ram: 16384
+    ephemeral_disk: 1024000    
+  - name: Standard_F8
+    cpu: 8
+    ram: 16384
+    ephemeral_disk: 1024000
+  - name: Standard_F8s_v2
+    cpu: 8
+    ram: 16384
+    ephemeral_disk: 65536
+  - name: Standard_F4
+    cpu: 4
+    ram: 8192
+    ephemeral_disk: 65536   
+  - name: Standard_F4s_v2
+    cpu: 4
+    ram: 8192
+    ephemeral_disk: 65536
+  - name: Standard_F2
+    cpu: 2
+    ram: 4096
+    ephemeral_disk: 65536   
+  - name: Standard_F2s_v2
+    cpu: 2
+    ram: 4096
+    ephemeral_disk: 16384
