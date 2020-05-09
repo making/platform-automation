@@ -444,7 +444,7 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: Standard_DS11_v2
+      id: automatic
     instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
@@ -514,7 +514,7 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: Standard_DS2_v2
+      id: automatic
     instances: 1
     internet_connected: false
     persistent_disk:
@@ -601,7 +601,7 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: Standard_DS1_v2
+      id: automatic
     instances: 1
     internet_connected: false
     swap_as_percent_of_memory_size: automatic
