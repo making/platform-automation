@@ -46,18 +46,18 @@ errand-config:
   delete-space:
     pre-delete-state: true
   migrate-route:
-    post-deploy-state: true
+    post-deploy-state: false
   push-app-metrics:
     post-deploy-state: true
   smoke-test:
     post-deploy-state: true
 syslog-properties:
-  address: null
+  address: logstash.maki.lol
   custom_rsyslog_configuration: null
-  enabled: false
+  enabled: true
   forward_debug_logs: false
   permitted_peer: null
-  port: null
+  port: 5518
   queue_size: null
   ssl_ca_certificate: null
   tls_enabled: false
