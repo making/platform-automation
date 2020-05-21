@@ -37,10 +37,10 @@ resource-config:
     elb_names: []
     instance_type:
       id: Standard_F2s_v2
-    instances: "20480"
+    instances: automatic
     internet_connected: false
     persistent_disk:
-      size_mb: automatic
+      size_mb: "20480"
     swap_as_percent_of_memory_size: automatic
 errand-config:
   delete-space:
