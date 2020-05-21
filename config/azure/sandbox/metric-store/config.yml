@@ -15,11 +15,11 @@ resource-config:
     additional_vm_extensions: []
     elb_names: []
     instance_type:
-      id: automatic
-    instances: automatic
+      id: Standard_D2s_v3
+    instances: 1
     internet_connected: false
     persistent_disk:
-      size_mb: automatic
+      size_mb: "10240"
     swap_as_percent_of_memory_size: automatic
 errand-config:
   metric-store-smoke-tests:
