@@ -124,16 +124,12 @@ product-properties:
     value: rfc3339
   .properties.enable_garden_containerd_mode:
     value: true
-  .properties.enable_log_cache_syslog_ingestion:
-    value: true
   .properties.enable_smb_volume_driver:
     value: true
   .properties.enable_tls_to_internal_pxc:
     value: false
   .properties.enable_v1_firehose:
-    value: false
-  .properties.enable_v2_firehose:
-    value: false
+    value: true
   .properties.experimental_dynamic_egress_enforcement:
     value: false
   .properties.garden_disk_cleanup:
@@ -615,7 +611,7 @@ errand-config:
   deploy-notifications-ui:
     post-deploy-state: true
   metric_registrar_smoke_test:
-    post-deploy-state: false
+    post-deploy-state: true
   nfsbrokerpush:
     post-deploy-state: false
   push-apps-manager:
@@ -627,7 +623,7 @@ errand-config:
   smbbrokerpush:
     post-deploy-state: true
   smoke_tests:
-    post-deploy-state: false
+    post-deploy-state: true
   test-autoscaling:
     post-deploy-state: true
 
