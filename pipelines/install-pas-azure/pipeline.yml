@@ -97,6 +97,10 @@ groups:
   - configure-healthwatch
   - upload-and-stage-healthwatch-pas-exporter
   - configure-healthwatch-pas-exporter
+  - upload-and-stage-metric-store
+  - configure-metric-store
+  - upload-and-stage-app-metrics
+  - configure-app-metrics
   - apply-changes-again
 - name: uninstall
   jobs:
@@ -1076,7 +1080,7 @@ jobs:
     - get: terraform-tfstate
       passed:
       - apply-changes
-      # trigger: true
+      trigger: true
     - get: platform-automation-image
       resource: platform-automation
       params:
@@ -1159,7 +1163,7 @@ jobs:
     - get: terraform-tfstate
       passed:
       - apply-changes
-      # trigger: true
+      trigger: true
     - get: platform-automation-image
       resource: platform-automation
       params:
@@ -1264,6 +1268,172 @@ jobs:
       CONFIG_FILE: config/azure/sandbox/healthwatch-pas-exporter/config.yml
       VARS_FILES: vars/terraform-output.yml
 
+- name: upload-and-stage-metric-store
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/azure/sandbox/metric-store/download-config.yml
+      SOURCE: pivnet
+    output_mapping:
+      downloaded-product: product
+      downloaded-stemcell: stemcell
+  - in_parallel:
+    - task: upload-and-stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config        
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+
+- name: configure-metric-store
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - upload-and-stage-metric-store
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/azure/sandbox/metric-store/config.yml
+      VARS_FILES: vars/terraform-output.yml
+
+- name: upload-and-stage-app-metrics
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - upload-and-stage-metric-store
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/azure/sandbox/app-metrics/download-config.yml
+      SOURCE: pivnet
+    output_mapping:
+      downloaded-product: product
+      downloaded-stemcell: stemcell
+  - in_parallel:
+    - task: upload-and-stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config        
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      params:
+        ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+
+- name: configure-app-metrics
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-tfstate
+      passed:
+      - upload-and-stage-app-metrics
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: terraform-template
+  - task: create-vars
+    file: config/tasks/create-vars-terraform-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/azure/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/azure/sandbox/app-metrics/config.yml
+      VARS_FILES: vars/terraform-output.yml
+
 - name: apply-changes-again
   serial: true
   plan:
@@ -1272,6 +1442,8 @@ jobs:
       passed:
       - configure-healthwatch
       - configure-healthwatch-pas-exporter
+      - configure-metric-store
+      - configure-app-metrics
       trigger: true
     - get: platform-automation-image
       resource: platform-automation
