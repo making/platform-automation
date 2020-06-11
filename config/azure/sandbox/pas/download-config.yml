@@ -4,7 +4,7 @@ pivnet-product-slug: elastic-runtime
 
 # Either product-version OR product-version-regex is required
 # product-version-regex: ^1\.2\..*$ # must not be quoted
-product-version-regex: ^2\.8\..*$
+product-version-regex: ^2\.9\.[0-9]*$
 
 # Optional
 # pivnet-disable-ssl: true  # default - false
