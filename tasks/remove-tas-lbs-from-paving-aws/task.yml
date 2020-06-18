@@ -14,4 +14,4 @@ run:
     DNS_START_LINE=$(grep -n '"wildcard-sys"' terraform-template/aws/dns.tf | awk -F : '{print $1}')
     DNS_END_LINE=$(expr $(grep -n '"pks-api"' terraform-template/aws/dns.tf | awk -F : '{print $1}') - 1)
     sed -i "${DNS_START_LINE},${DNS_END_LINE} d" terraform-template/aws/dns.tf
-    sed -i -e '/apps_/ d' -e '/sys_/ d' -e '/web_/ d' -e '/ssh_/ d' -e '/tcp_/ d' terraform-template/aws/outputs.tf
+    sed -i -e '/^    apps_/ d' -e '/^    sys_/ d' -e '/^    web_/ d' -e '/^    ssh_/ d' -e '/^    tcp_/ d' terraform-template/aws/outputs.tf
