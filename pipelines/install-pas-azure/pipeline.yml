@@ -694,6 +694,7 @@ jobs:
     - task: upload-and-stage-product
       image: platform-automation-image
       file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      attempts: 3
       params:
         ENV_FILE: config/azure/sandbox/ops-manager/env.yml
       input_mapping:
@@ -701,6 +702,7 @@ jobs:
     - task: upload-stemcell
       image: platform-automation-image
       file: platform-automation-tasks/tasks/upload-stemcell.yml
+      attempts: 3
       params:
         ENV_FILE: config/azure/sandbox/ops-manager/env.yml
       input_mapping:
