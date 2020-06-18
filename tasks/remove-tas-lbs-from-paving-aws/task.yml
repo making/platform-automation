@@ -1,0 +1,17 @@
+platform: linux
+inputs:
+- name: terraform-template
+outputs:
+- name: terraform-template
+run:
+  path: bash
+  args:
+  - -cex
+  - |
+    LB_START_LINE=$(grep -n 'Web Load Balancer' terraform-template/aws/lbs.tf | awk -F : '{print $1}')
+    LB_END_LINE=$(expr $(grep -n 'PKS API Load Balancer' terraform-template/aws/lbs.tf | awk -F : '{print $1}') - 1)
+    sed -i "${LB_START_LINE},${LB_END_LINE} d" terraform-template/aws/lbs.tf
+    DNS_START_LINE=$(grep -n '"wildcard-sys"' terraform-template/aws/dns.tf | awk -F : '{print $1}')
+    DNS_END_LINE=$(expr $(grep -n '"pks-api"' terraform-template/aws/dns.tf | awk -F : '{print $1}') - 1)
+    sed -i "${DNS_START_LINE},${DNS_END_LINE} d" terraform-template/aws/dns.tf
+    sed -i -e '/apps_/ d' -e '/sys_/ d' -e '/web_/ d' -e '/ssh_/ d' -e '/tcp_/ d' terraform-template/aws/outputs.tf
