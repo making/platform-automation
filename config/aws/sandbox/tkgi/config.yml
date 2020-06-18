@@ -10,7 +10,7 @@ network-properties:
   - name: ((availability_zones.1))
   - name: ((availability_zones.2))
   singleton_availability_zone:
-    name: ((availability_zones.0))
+    name: ((availability_zones.1))
 product-properties:
   .pivotal-container-service.pks_tls:
     value:
@@ -23,6 +23,8 @@ product-properties:
   .properties.plan1_selector.active.master_az_placement:
     value:
     - ((availability_zones.0))
+    - ((availability_zones.1))
+    - ((availability_zones.2))
   .properties.plan1_selector.active.worker_az_placement:
     value:
     - ((availability_zones.0))
