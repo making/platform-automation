@@ -1,0 +1,11 @@
+platform: linux
+inputs:
+- name: terraform-state
+outputs:
+- name: vars
+run:
+  path: bash
+  args:
+  - -cex
+  - |
+    bosh int terraform-state/metadata --path /stable_config | bosh int - > vars/vars.yml
