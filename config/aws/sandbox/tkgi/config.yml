@@ -51,11 +51,16 @@ product-properties:
     value: not_provided
 resource-config:
   pivotal-container-service:
+    instance_type:
+      id: t3.medium
     elb_names:
     - alb:((pks_api_target_groups.0))
     - alb:((pks_api_target_groups.1))
     additional_vm_extensions:
     - pks-api-lb-security-groups
+  pks-db:
+    instance_type:
+      id: t3.medium
 errand-config:
   smoke-tests:
     post-deploy-state: true
