@@ -30,6 +30,9 @@ product-properties:
     - ((availability_zones.0))
     - ((availability_zones.1))
     - ((availability_zones.2))
+  .properties.plan1_selector.active.admission_plugins:
+    value:
+    - deny_escalating_exec
   .properties.plan2_selector:
     value: "Plan Inactive"
   .properties.plan3_selector:
