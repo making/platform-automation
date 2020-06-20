@@ -1,5 +1,5 @@
 pivnet-api-token: ((pivnet_api_token))
-pivnet-file-glob: "cf-*.pivotal"       # must be quoted if starting with a *
+pivnet-file-glob: "srt-*.pivotal"       # must be quoted if starting with a *
 pivnet-product-slug: elastic-runtime
 
 # Either product-version OR product-version-regex is required
