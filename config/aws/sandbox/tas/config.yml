@@ -80,11 +80,11 @@ resource-config:
   compute:
     instances: 1
     instance_type:
-      id: automatic
+      id: r5.xlarge
   control:
     instances: 1
     instance_type:
-      id: r5.xlarge
+      id: m5.xlarge
     elb_names:
     - alb:((ssh_target_group_name))
     additional_vm_extensions:
@@ -96,7 +96,7 @@ resource-config:
   router:
     instances: 1
     instance_type:
-      id: c5.large
+      id: t3.micro
     elb_names:
     - alb:((web_target_group_names.0))
     - alb:((web_target_group_names.1))
