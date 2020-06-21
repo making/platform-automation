@@ -60,6 +60,8 @@ product-properties:
     value: ((packages_bucket_name))
   .properties.system_blobstore.external.resources_bucket:
     value: ((resources_bucket_name))
+  .properties.system_blobstore.external.versioning:
+    value: 1
   .properties.tcp_routing:
     value: enable
   .properties.tcp_routing.enable.reservable_ports:
@@ -70,6 +72,8 @@ product-properties:
         ((ssl_certificate))
       private_key_pem: |
         ((ssl_private_key))
+  .properties.metric_registrar_blacklisted_tags:
+    value: deployment,job,index
 resource-config:
   compute:
     instances: 1
