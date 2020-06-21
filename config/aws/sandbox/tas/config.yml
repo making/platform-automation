@@ -45,8 +45,6 @@ product-properties:
     value: external
   .properties.system_blobstore.external.endpoint:
     value: https://s3-((region)).amazonaws.com
-  .properties.system_blobstore.external.iam_instance_profile_authentication:
-    value: true
   .properties.system_blobstore.external.access_key:
     value: ((ops_manager_iam_user_access_key))
   .properties.system_blobstore.external.secret_key:
