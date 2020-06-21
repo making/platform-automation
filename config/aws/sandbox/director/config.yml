@@ -155,6 +155,7 @@ vmextensions-configuration:
     - ((platform_vms_security_group_id))
 vmtypes-configuration:
   custom_only: true
+  vm_types:
   - name: t3.nano
     cpu: 2
     ephemeral_disk: 8192
