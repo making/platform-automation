@@ -1,0 +1,19 @@
+platform: linux
+inputs:
+- name: terraform-template
+outputs:
+- name: terraform-template
+run:
+  path: bash
+  args:
+  - -cex
+  - |
+    N=$(grep -n '${aws_s3_bucket.ops-manager-bucket.arn}/*' terraform-template/aws/ops-manager.tf | awk -F : '{print $1}')
+    sed -i "${N}a \"\${aws_s3_bucket.droplets-bucket.arn}/*\"," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a aws_s3_bucket.droplets-bucket.arn," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a \"\${aws_s3_bucket.resources-bucket.arn}/*\"," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a aws_s3_bucket.resources-bucket.arn," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a \"\${aws_s3_bucket.packages-bucket.arn}/*\"," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a aws_s3_bucket.packages-bucket.arn," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a \"\${aws_s3_bucket.buildpacks-bucket.arn}/*\"," terraform-template/aws/ops-manager.tf
+    sed -i "${N}a ,aws_s3_bucket.buildpacks-bucket.arn," terraform-template/aws/ops-manager.tf
