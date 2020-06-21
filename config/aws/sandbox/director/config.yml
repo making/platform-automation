@@ -172,7 +172,7 @@ vmtypes-configuration:
     ram: 2048
     raw_instance_storage: false
   - name: t3.medium
-    cpu: 3
+    cpu: 2
     ephemeral_disk: 32768
     ram: 4096
     raw_instance_storage: false
