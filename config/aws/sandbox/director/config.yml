@@ -153,3 +153,110 @@ vmextensions-configuration:
     security_groups:
     - ((pks_api_lb_security_group_id))
     - ((platform_vms_security_group_id))
+vmtypes-configuration:
+  custom_only: true
+  - name: t3.nano
+    cpu: 2
+    ephemeral_disk: 8192
+    ram: 512
+    raw_instance_storage: false
+  - name: t3.micro
+    cpu: 2
+    ephemeral_disk: 8192
+    ram: 1024
+    raw_instance_storage: false
+  - name: t3.small
+    cpu: 2
+    ephemeral_disk: 8192
+    ram: 2048
+    raw_instance_storage: false
+  - name: t3.medium
+    cpu: 3
+    ephemeral_disk: 32768
+    ram: 4096
+    raw_instance_storage: false
+  - name: c5.large
+    cpu: 2
+    ephemeral_disk: 32768
+    ram: 4096
+    raw_instance_storage: false
+  - name: c5.xlarge
+    cpu: 4
+    ephemeral_disk: 65536
+    ram: 8192
+    raw_instance_storage: false
+  - name: c5.2xlarge
+    cpu: 8
+    ephemeral_disk: 131072
+    ram: 16384
+    raw_instance_storage: false
+  - name: c5.4xlarge
+    cpu: 16
+    ephemeral_disk: 262144
+    ram: 32768
+    raw_instance_storage: false
+  - name: c5.9xlarge
+    cpu: 36
+    ephemeral_disk: 524288
+    ram: 73728
+    raw_instance_storage: false
+  - name: m5.large
+    cpu: 2
+    ephemeral_disk: 32768
+    ram: 8192
+    raw_instance_storage: false
+  - name: m5.xlarge
+    cpu: 4
+    ephemeral_disk: 65536
+    ram: 16384
+    raw_instance_storage: false
+  - name: m5.2xlarge
+    cpu: 8
+    ephemeral_disk: 131072
+    ram: 32768
+    raw_instance_storage: false
+  - name: m5.4xlarge
+    cpu: 16
+    ephemeral_disk: 262144
+    ram: 65536
+    raw_instance_storage: false
+  - name: m5.12xlarge
+    cpu: 48
+    ephemeral_disk: 1048576
+    ram: 196608
+    raw_instance_storage: false
+  - name: r5.large
+    cpu: 2
+    ephemeral_disk: 65536
+    ram: 16384
+    raw_instance_storage: false
+  - name: r5.xlarge
+    cpu: 4
+    ephemeral_disk: 131072
+    ram: 32768
+    raw_instance_storage: false
+  - name: r5.2xlarge
+    cpu: 8
+    ephemeral_disk: 262144
+    ram: 65536
+    raw_instance_storage: false
+  - name: r5.4xlarge
+    cpu: 16
+    ephemeral_disk: 524288
+    ram: 131072
+    raw_instance_storage: false
+  - name: r5.12xlarge
+    cpu: 48
+    ephemeral_disk: 2097152
+    ram: 393216
+    raw_instance_storage: false
+  - name: i3.8xlarge
+    cpu: 32
+    ephemeral_disk: 983040
+    ram: 249856
+    raw_instance_storage: true
+  - name: d2.8xlarge
+    cpu: 36
+    ephemeral_disk: 983040
+    ram: 249856
+    raw_instance_storage: true
