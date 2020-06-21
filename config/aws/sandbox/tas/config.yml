@@ -40,7 +40,26 @@ product-properties:
   .properties.security_acknowledgement:
     value: X
   .properties.system_blobstore:
-    value: internal
+    value: external
+  .properties.system_blobstore.external.endpoint:
+    value: https://s3-((region)).amazonaws.com
+  .properties.system_blobstore.external.access_key:
+    value: ((ops_manager_iam_user_access_key))
+  .properties.system_blobstore.external.secret_key:
+    value:
+      secret: "((ops_manager_iam_user_secret_key))"
+  .properties.system_blobstore.external.signature_version:
+    value: 4
+  .properties.system_blobstore.external.region:
+    value: ((region))
+  .properties.system_blobstore.external.buildpacks_bucket:
+    value: ((buildpacks_bucket_name))
+  .properties.system_blobstore.external.droplets_bucket:
+    value: ((droplets_bucket_name))
+  .properties.system_blobstore.external.packages_bucket:
+    value: ((packages_bucket_name))
+  .properties.system_blobstore.external.resources_bucket:
+    value: ((resources_bucket_name))
   .properties.tcp_routing:
     value: enable
   .properties.tcp_routing.enable.reservable_ports:
@@ -54,19 +73,33 @@ product-properties:
 resource-config:
   compute:
     instances: 1
+    instance_type:
+      id: automatic
   control:
+    instances: 1
+    instance_type:
+      id: r5.xlarge
     elb_names:
     - alb:((ssh_target_group_name))
     additional_vm_extensions:
     - ssh-lb-security-groups
+  database:
+    instances: 1
+    instance_type:
+      id: m5.large
   router:
+    instances: 1
+    instance_type:
+      id: c5.large
     elb_names:
     - alb:((web_target_group_names.0))
     - alb:((web_target_group_names.1))
     additional_vm_extensions:
     - web-lb-security-groups
-    instances: 1
   tcp_router:
+    instances: 1
+    instance_type:
+      id: t3.micro
     elb_names:
     - alb:((tcp_target_group_names.0))
     - alb:((tcp_target_group_names.1))
@@ -75,3 +108,9 @@ resource-config:
     - alb:((tcp_target_group_names.4))
     additional_vm_extensions:
     - tcp-lb-security-groups
+  ha_proxy:
+    instances: 0
+  blobstore:
+    instances: 0
+  backup_restore:
+    instances: 0
