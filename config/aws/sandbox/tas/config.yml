@@ -17,10 +17,12 @@ product-properties:
     value: ((sys_dns_domain))
   .properties.cf_networking_search_domains:
     value: apps.internal
+  .properties.cf_networking_enable_space_developer_self_service:
+    value: true
   .ha_proxy.skip_cert_verify:
     value: true
   .mysql_monitor.recipient_email:
-    value: cf-infra@pivotal.io
+    value: cf-infra@example.com
   .properties.credhub_internal_provider_keys:
     value:
     - key:
