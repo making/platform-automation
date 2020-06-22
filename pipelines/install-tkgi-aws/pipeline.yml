@@ -1,0 +1,818 @@
+resource_types:
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+    tag: latest
+
+resources:
+- name: config
+  type: git
+  source:
+    uri: https://github.com/making/platform-automation.git
+    branch: master
+- name: terraform-template
+  type: git
+  source:
+    uri: https://github.com/voor/paving.git
+    branch: add-kubernetes-tags
+- name: terraform-state
+  type: terraform
+  source:
+    backend_type: s3
+    backend_config:
+      key: terraform.tfstate
+      bucket: ((s3_output_bucket))
+      prefix: aws
+      # minio
+      force_path_style: true
+      skip_credentials_validation: true
+    vars:
+      region: ((aws_region))
+      access_key: ((aws_access_key_id))
+      secret_key: ((aws_secret_access_key))
+      availability_zones: [((availability_zones_1)), ((availability_zones_2)), ((availability_zones_3))]
+      environment_name: ((env_name))
+      hosted_zone: ((hosted_zone))
+    env:
+      AWS_S3_ENDPOINT: ((s3_endpoint))
+      AWS_DEFAULT_REGION: ((s3_aws_region))
+      AWS_ACCESS_KEY_ID: ((s3_aws_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((s3_aws_secret_access_key))
+- name: opsman-state
+  type: s3
+  source:
+    disable_ssl: true
+    access_key_id: ((s3_aws_access_key_id))
+    secret_access_key: ((s3_aws_secret_access_key))
+    endpoint: ((s3_endpoint))
+    bucket: ((s3_output_bucket))
+    region_name: ((s3_aws_region))
+    regexp: state-(.*).yml
+- name: certificates
+  type: s3
+  source:
+    disable_ssl: true
+    access_key_id: ((s3_aws_access_key_id))
+    secret_access_key: ((s3_aws_secret_access_key))
+    endpoint: ((s3_endpoint))
+    bucket: ((s3_output_bucket))
+    region_name: ((s3_aws_region))
+    regexp: certificates-(.*).tgz
+- name: platform-automation
+  type: pivnet
+  source:
+    product_slug: platform-automation
+    api_token: ((pivnet_api_token))
+    product_version: ^4\.[0-9]+\.[0-9]+$
+
+tasks:
+  prepare-tasks-with-secrets: &prepare-tasks-with-secrets
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/prepare-tasks-with-secrets.yml
+    params:
+      CONFIG_PATHS: config/config/aws/sandbox
+      VARS_PATHS: vars
+    input_mapping:
+      tasks: platform-automation-tasks
+    output_mapping:
+      tasks: platform-automation-tasks
+
+jobs:
+- name: terraform-plan
+  plan:
+  - in_parallel:
+    - get: config
+    - get: terraform-template
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+#  - task: hack-paving-template
+#    image: platform-automation-image
+#    file: config/tasks/remove-tas-lbs-from-paving-aws/task.yml
+  - task: hack-paving-template
+    image: platform-automation-image
+    file: config/tasks/add-s3-buckets-permissions-to-paving-aws/task.yml
+  - put: terraform-state
+    params:
+      env_name: ((env_name))
+      terraform_source: terraform-template/aws
+      plan_only: true
+
+- name: terraform-apply
+  plan:
+  - in_parallel:
+    - get: config
+    - get: terraform-template
+      passed:
+      - terraform-plan
+    - get: terraform-state
+      passed:
+      - terraform-plan
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+#  - task: hack-paving-template
+#    image: platform-automation-image
+#    file: config/tasks/remove-tas-lbs-from-paving-aws/task.yml
+  - task: hack-paving-template
+    image: platform-automation-image
+    file: config/tasks/add-s3-buckets-permissions-to-paving-aws/task.yml
+  - put: terraform-state
+    params:
+      env_name: ((env_name))
+      terraform_source: terraform-template/aws
+      plan_only: false
+
+- name: install-ops-manager
+  plan:
+  - in_parallel:
+    - get: config
+    - get: terraform-state
+      passed:
+      - terraform-apply
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: opsman-state
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/aws/sandbox/ops-manager/download-config.yml
+  - task: create-vm
+    params:
+      VARS_FILES: vars/vars.yml
+      OPSMAN_CONFIG_FILE: config/aws/sandbox/ops-manager/config.yml
+      STATE_FILE: state-$timestamp.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/create-vm.yml
+    input_mapping:
+      image: downloaded-product
+      state: opsman-state
+    ensure:
+      do:
+      - put: opsman-state
+        params:
+          file: generated-state/state-*.yml
+
+- name: generate-certificate
+  plan:
+  - task: generate-certificate
+    params:
+      AWS_REGION: ((aws_region))
+      AWS_ACCESS_KEY_ID: ((aws_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((aws_secret_access_key))
+      AWS_HOSTED_ZONE_ID: ((hosted_zone_id))
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+      EMAIL: ((email))
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: goacme/lego
+      outputs:
+      - name: lego
+      run:
+        path: sh
+        args:
+        - -cex
+        - |
+          lego --accept-tos \
+            --key-type=rsa4096 \
+            --domains="*.${SUBDOMAIN}" \
+            --domains="*.apps.${SUBDOMAIN}" \
+            --domains="*.sys.${SUBDOMAIN}" \
+            --domains="*.uaa.sys.${SUBDOMAIN}" \
+            --domains="*.login.sys.${SUBDOMAIN}" \
+            --domains="*.pks.${SUBDOMAIN}" \
+            --domains="*.tkgi.${SUBDOMAIN}" \
+            --domains="*.tkg.${SUBDOMAIN}" \
+            --email=${EMAIL} \
+            --dns=route53 \
+            run
+          tar czf certificates-$(date '+%Y%m%d.%-H%M.%S+%Z').tgz -C .lego certificates
+          mv certificates*.tgz lego
+  - put: certificates
+    params:
+      file: lego/certificates-*.tgz
+
+- name: configure-authentication
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - install-ops-manager
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-authentication
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      AUTH_CONFIG_FILE: config/aws/sandbox/ops-manager/auth.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-authentication.yml
+    attempts: 10
+    input_mapping:
+      env: config
+
+- name: update-ssl-certificate
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - configure-authentication
+      trigger: true
+    - get: certificates
+      passed:
+      - generate-certificate
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: update-ssl-certificate
+    params:
+      OM_USERNAME: ((om_username))
+      OM_PASSWORD: ((om_password))
+      OM_TARGET: https://opsmanager.((env_name)).((hosted_zone))
+      OM_SKIP_SSL_VALIDATION: true
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: certificates
+      run:
+        path: bash
+        args:
+        - -ce
+        - |
+          tar xzf certificates/certificates*.tgz
+          om update-ssl-certificate \
+            --certificate-pem="$(cat certificates/_.${SUBDOMAIN}.crt)" \
+            --private-key-pem="$(cat certificates/_.${SUBDOMAIN}.key)"
+
+- name: configure-director
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - update-ssl-certificate
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: configure-director
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      DIRECTOR_CONFIG_FILE: config/aws/sandbox/director/config.yml
+      VARS_FILES: vars/vars.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-director.yml
+    input_mapping:
+      env: config
+
+- name: upload-and-stage-tkgi
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - update-ssl-certificate
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/aws/sandbox/tkgi/download-config.yml
+      SOURCE: pivnet
+    output_mapping:
+      downloaded-product: product
+      downloaded-stemcell: stemcell
+  - in_parallel:
+    - task: upload-and-stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      attempts: 3
+      params:
+        ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      attempts: 3
+      params:
+        ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+
+- name: configure-tkgi
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - upload-and-stage-tkgi
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: certificates
+      passed:
+      - update-ssl-certificate
+  - task: create-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: update-vars
+    params:
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: vars
+      - name: certificates
+      outputs:
+      - name: vars
+      run:
+        path: bash
+        args:
+        - -ce
+        - |
+          tar xzf certificates/certificates*.tgz
+          cp vars/vars.yml vars.yml
+          bosh interpolate vars.yml \
+          -o <(cat <<EOF
+          - type: replace
+            path: /ssl_certificate
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.crt | sed 's/^/    /')
+          - type: replace
+            path: /ssl_private_key
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.key | sed 's/^/    /')
+          EOF
+          ) > vars/vars.yml
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/aws/sandbox/tkgi/config.yml
+      VARS_FILES: vars/vars.yml
+
+- name: upload-and-stage-tas
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - update-ssl-certificate
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: create-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    params:
+      CONFIG_FILE: config/aws/sandbox/tas/download-config.yml
+      SOURCE: pivnet
+    output_mapping:
+      downloaded-product: product
+      downloaded-stemcell: stemcell
+  - in_parallel:
+    - task: upload-and-stage-product
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-and-stage-product.yml
+      attempts: 3
+      params:
+        ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+    - task: upload-stemcell
+      image: platform-automation-image
+      file: platform-automation-tasks/tasks/upload-stemcell.yml
+      attempts: 3
+      params:
+        ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      input_mapping:
+        env: config
+
+- name: configure-tas
+  serial: true
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - upload-and-stage-tas
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: certificates
+      passed:
+      - update-ssl-certificate
+  - task: create-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: update-vars
+    params:
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    image: platform-automation-image
+    config:
+      platform: linux
+      inputs:
+      - name: vars
+      - name: certificates
+      outputs:
+      - name: vars
+      run:
+        path: bash
+        args:
+        - -ce
+        - |
+          tar xzf certificates/certificates*.tgz
+          cp vars/vars.yml vars.yml
+          bosh interpolate vars.yml \
+          -o <(cat <<EOF
+          - type: replace
+            path: /ssl_certificate
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.crt | sed 's/^/    /')
+          - type: replace
+            path: /ssl_private_key
+            value: |
+          $(cat certificates/_.${SUBDOMAIN}.key | sed 's/^/    /')
+          EOF
+          ) > vars/vars.yml
+  - task: configure-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+      CONFIG_FILE: config/aws/sandbox/tas/config.yml
+      VARS_FILES: vars/vars.yml
+
+- name: apply-changes
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - configure-director
+      - configure-tkgi
+      - configure-tas
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: apply-changes
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/apply-changes.yml
+    input_mapping:
+      env: config
+
+- name: initialize-ops-manager
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: initialize-ops-manager
+    image: platform-automation-image
+    params:
+      OM_USERNAME: ((om_username))
+      OM_PASSWORD: ((om_password))
+      OM_TARGET: https://opsmanager.((env_name)).((hosted_zone))
+      OM_SKIP_SSL_VALIDATION: true
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    config:
+      platform: linux
+      inputs:
+      - name: terraform-state
+      run:
+        path: bash
+        args:
+        - -cex
+        - |
+          bosh int terraform-state/metadata --path /stable_config | bosh int - > vars.yml
+          cat <<PEM > /tmp/opsman-((env_name)).pem
+          $(bosh int vars.yml --path /ops_manager_ssh_private_key)
+          PEM
+          chmod 600 /tmp/opsman-((env_name)).pem
+          ssh -o "StrictHostKeyChecking=no" \
+              -o "ServerAliveInterval=15" \
+              -i /tmp/opsman-((env_name)).pem \
+              ubuntu@$(bosh int vars.yml --path /ops_manager_dns) "$(cat <<EOF
+          cat <<ENV | sudo tee -a /etc/profile.d/bosh.sh > /dev/null
+          $(om bosh-env)
+          ENV
+          EOF
+          )"
+
+- name: show-tkgi-instructions
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: show-instructions
+    image: platform-automation-image
+    params:
+      OM_USERNAME: ((om_username))
+      OM_PASSWORD: ((om_password))
+      OM_TARGET: https://opsmanager.((env_name)).((hosted_zone))
+      OM_SKIP_SSL_VALIDATION: true
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    config:
+      platform: linux
+      inputs:
+      - name: terraform-state
+      run:
+        path: bash
+        args:
+        - -cex
+        - |
+          bosh int terraform-state/metadata --path /stable_config | bosh int - > vars.yml
+          PKS_API_DNS=$(bosh int vars.yml --path /pks_api_dns)
+          ADMIN_SECRET=$(om credentials -p pivotal-container-service -c .properties.pks_uaa_management_admin_client -f secret)
+          ADMIN_PASSWORD=$(om credentials -p pivotal-container-service -c .properties.uaa_admin_password -f secret)
+
+          cat <<EOF
+          # How to access PKS API
+          pks login -a ${PKS_API_DNS} -k -u admin -p ${ADMIN_PASSWORD}
+
+          # How to ssh opsman
+          cat <<SCRIPT > /tmp/ssh-opsman-((env_name)).sh
+          #!/bin/bash
+          cat <<PEM > /tmp/opsman-((env_name)).pem
+          $(bosh int vars.yml --path /ops_manager_ssh_private_key)
+          PEM
+          chmod 600 /tmp/opsman-((env_name)).pem
+          ssh -o "StrictHostKeyChecking=no" -o "ServerAliveInterval=15" -i /tmp/opsman-((env_name)).pem ubuntu@$(bosh int vars.yml --path /ops_manager_dns) "\$@"
+          SCRIPT
+          EOF
+
+- name: show-tas-instructions
+  plan:
+  - in_parallel:
+    - get: terraform-state
+      passed:
+      - apply-changes
+      trigger: true
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+  - task: show-instructions
+    image: platform-automation-image
+    params:
+      OM_USERNAME: ((om_username))
+      OM_PASSWORD: ((om_password))
+      OM_TARGET: https://opsmanager.((env_name)).((hosted_zone))
+      OM_SKIP_SSL_VALIDATION: true
+      SUBDOMAIN: ((env_name)).((hosted_zone))
+    config:
+      platform: linux
+      inputs:
+      - name: terraform-state
+      run:
+        path: bash
+        args:
+        - -cex
+        - |
+          bosh int terraform-state/metadata --path /stable_config | bosh int - > vars.yml
+          SYS_DOMAIN=$(bosh int vars.yml --path /sys_dns_domain)
+          ADMIN_SECRET=$(om credentials -p cf -c .uaa.admin_client_credentials -f password)
+          ADMIN_PASSWORD=$(om credentials -p cf -c .uaa.admin_credentials -f password)
+
+          cat <<EOF
+          # Login to UAA as admin
+          cf login -a api.${SYS_DOMAIN} -u admin -p ${ADMIN_PASSWORD}
+
+          # Loing to UAA as admin client
+          uaac target https://uaa.${SYS_DOMAIN}
+          uaac token client get admin -s ${ADMIN_SECRET}
+          EOF
+
+- name: delete-installation
+  plan:
+  - in_parallel:
+    - get: terraform-state
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: opsman-state
+      passed:
+      - install-ops-manager
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: delete-installation
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-installation.yml
+    input_mapping:
+      env: config
+    params:
+      ENV_FILE: config/aws/sandbox/ops-manager/env.yml
+
+- name: uninstall-ops-manager
+  plan:
+  - in_parallel:
+    - get: terraform-state
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        globs: ["*image*.tgz"]
+        unpack: true
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        globs: ["*tasks*.zip"]
+        unpack: true
+    - get: config
+    - get: opsman-state
+      passed:
+      - delete-installation
+      trigger: true
+  - task: cateate-vars
+    image: platform-automation-image
+    file: config/tasks/create-vars-paving-output/task.yml
+  - task: prepare-tasks-with-secrets
+    <<: *prepare-tasks-with-secrets
+  - task: delete-vm
+    params:
+      VARS_FILES: vars/vars.yml
+      OPSMAN_CONFIG_FILE: config/aws/sandbox/ops-manager/config.yml
+      STATE_FILE: state-$timestamp.yml
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-vm.yml
+    input_mapping:
+      state: opsman-state
+    ensure:
+      do:
+      - put: opsman-state
+        params:
+          file: generated-state/state-*.yml
+
+- name: terraform-destroy
+  plan:
+  - in_parallel:
+    - get: terraform-template
+    - get: terraform-state
+      passed:
+      - terraform-apply
+    - get: opsman-state
+      passed:
+      - uninstall-ops-manager
+      trigger: true
+  - put: terraform-state
+    params:
+      env_name: ((env_name))
+      terraform_source: terraform-template/aws
+      plan_only: false
+      action: destroy
+      delete_on_failure: true
+    get_params:
+      action: destroy
