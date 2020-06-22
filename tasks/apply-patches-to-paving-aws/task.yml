@@ -9,6 +9,8 @@ run:
   - -cex
   - |
     cd terraform-template
+    git config --global user.email "you@example.com"
+    git config --global user.name "Your Name"
     git remote add voor https://github.com/voor/paving.git
     git remote add making https://github.com/making/paving.git
     git fetch voor add-kubernetes-tags
