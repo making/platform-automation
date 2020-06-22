@@ -1,0 +1,19 @@
+platform: linux
+inputs:
+- name: terraform-template
+outputs:
+- name: terraform-template
+run:
+  path: bash
+  args:
+  - -cex
+  - |
+    cd terraform-template
+    git remote add voor https://github.com/voor/paving.git
+    git remote add making https://github.com/making/paving.git
+    git fetch voor add-kubernetes-tags
+    git fetch making tas-iam
+    git fetch making force-destroy-buckets
+    git cherry-pick -x ef6d4965a19c489bfe3dbbb0a9c5faa167f70475
+    git cherry-pick -x e57dab5353111a5792f09a56d2612b1a871ba7d1
+    git cherry-pick -x 85a8832a797ac2e15fb607d59733c6ed56188887
