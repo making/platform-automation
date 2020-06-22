@@ -19,8 +19,8 @@ resources:
 - name: terraform-template
   type: git
   source:
-    uri: https://github.com/voor/paving.git
-    branch: add-kubernetes-tags
+    uri: https://github.com/pivotal/paving.git
+    branch: master
 - name: terraform-state
   type: terraform
   source:
@@ -99,7 +99,7 @@ jobs:
 #    file: config/tasks/remove-tas-lbs-from-paving-aws/task.yml
   - task: hack-paving-template
     image: platform-automation-image
-    file: config/tasks/add-s3-buckets-permissions-to-paving-aws/task.yml
+    file: config/tasks/apply-patches-to-paving-aws/task.yml
   - put: terraform-state
     params:
       env_name: ((env_name))
@@ -126,7 +126,7 @@ jobs:
 #    file: config/tasks/remove-tas-lbs-from-paving-aws/task.yml
   - task: hack-paving-template
     image: platform-automation-image
-    file: config/tasks/add-s3-buckets-permissions-to-paving-aws/task.yml
+    file: config/tasks/apply-patches-to-paving-aws/task.yml
   - put: terraform-state
     params:
       env_name: ((env_name))
