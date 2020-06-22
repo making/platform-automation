@@ -113,7 +113,7 @@ resource-config:
     additional_vm_extensions:
     - tcp-lb-security-groups
   backup_restore:
-    instances: 1
+    instances: 0
     additional_vm_extensions:
     - tas-blobstore-iam-instance-profile
   mysql_monitor:
