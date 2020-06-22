@@ -45,13 +45,10 @@ product-properties:
     value: external
   .properties.system_blobstore.external.endpoint:
     value: https://s3-((region)).amazonaws.com
-  .properties.system_blobstore.external.access_key:
-    value: ((ops_manager_iam_user_access_key))
-  .properties.system_blobstore.external.secret_key:
-    value:
-      secret: "((ops_manager_iam_user_secret_key))"
+  .properties.system_blobstore.external.iam_instance_profile_authentication:
+    value: 1
   .properties.system_blobstore.external.signature_version:
-    value: 4
+    value: "4"
   .properties.system_blobstore.external.region:
     value: ((region))
   .properties.system_blobstore.external.buildpacks_bucket:
@@ -89,6 +86,7 @@ resource-config:
     - alb:((ssh_target_group_name))
     additional_vm_extensions:
     - ssh-lb-security-groups
+    - tas-blobstore-iam-instance-profile
   database:
     instances: 1
     instance_type:
@@ -114,9 +112,13 @@ resource-config:
     - alb:((tcp_target_group_names.4))
     additional_vm_extensions:
     - tcp-lb-security-groups
+  backup_restore:
+    instances: 1
+    additional_vm_extensions:
+    - tas-blobstore-iam-instance-profile
+  mysql_monitor:
+    instances: 0
   ha_proxy:
     instances: 0
   blobstore:
-    instances: 0
-  backup_restore:
     instances: 0
